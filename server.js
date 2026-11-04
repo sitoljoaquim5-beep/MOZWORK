@@ -1314,7 +1314,7 @@ app.use((err,req,res,next)=>{
 
 async function start(){
  const phone=String(process.env.ADMIN_PHONE||'').replace(/\s/g,'');
- const password=String(process.env.ADMIN_PASSWORD||process.env.ADMIN_PIN||'');
+ const password=String(process.env.ADMIN_PIN||process.env.ADMIN_PASSWORD||'');
 
  if(phone&&password){
   const existing=db.prepare(
@@ -1330,10 +1330,14 @@ async function start(){
    `).run('Administrador',phone,hash);
 
    console.log('Administrador criado com sucesso.');
-  }else if(existing.role!=='admin'){
+  }else{
+   const hash=await bcrypt.hash(password,12);
+
    db.prepare(`
-    UPDATE users SET role='admin' WHERE id=?
-   `).run(existing.id);
+    UPDATE users
+    SET passwordHash=?, role='admin', blocked=0
+    WHERE id=?
+   `).run(hash,existing.id);
   }
 
   // Apenas o número configurado no .env mantém acesso de administrador.
