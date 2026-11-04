@@ -74,9 +74,9 @@ header{padding:13px}
 <p class="muted">Painel de controlo administrativo</p>
 <h2>Entrar como administrador</h2>
 <form id="loginForm">
-<label>Telefone do administrador</label>
-<input id="phone" type="tel" required placeholder="Número de telefone">
-<label>PIN ou senha</label>
+<label>Nome de usuário</label>
+<input id="username" type="text" required autocomplete="username" placeholder="Usuário do administrador">
+<label>PIN secreto</label>
 <input id="pin" type="password" required placeholder="PIN de acesso">
 <button style="width:100%">Entrar no painel</button>
 </form>
@@ -165,8 +165,8 @@ $('loginForm').addEventListener('submit',async e=>{
  e.preventDefault();
  $('loginError').textContent='A verificar acesso...';
  try{
-  const d=await send('/api/login','POST',{
-   phone:$('phone').value,
+  const d=await send('/api/admin/login','POST',{
+   username:$('username').value,
    pin:$('pin').value
   });
   if(d.user.role!=='admin'){

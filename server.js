@@ -396,6 +396,29 @@ app.post('/api/register',wrap(async(req,res)=>{
  res.json({user:safe(u)});
 }));
 
+app.post('/api/admin/login',wrap(async(req,res)=>{
+ const username=String(req.body.username||'').trim();
+ const pin=String(req.body.pin||'');
+ const expected=String(process.env.ADMIN_USERNAME||'');
+ const phone=String(process.env.ADMIN_PHONE||'').replace(/\\s/g,'');
+
+ if(!expected || username!==expected)
+  return res.status(401).json({error:'Usuário ou PIN incorrecto.'});
+
+ const u=db.prepare(
+  "SELECT * FROM users WHERE phone=? AND role='admin'"
+ ).get(phone);
+
+ if(!u || !(await bcrypt.compare(pin,u.passwordHash)))
+  return res.status(401).json({error:'Usuário ou PIN incorrecto.'});
+
+ if(u.blocked)
+  return res.status(403).json({error:'Conta administrativa indisponível.'});
+
+ req.session.uid=u.id;
+ res.json({user:safe(u)});
+}));
+
 app.post('/api/login',wrap(async(req,res)=>{
  const phone=String(req.body.phone||'').replace(/\s/g,'');
  const pin=String(req.body.pin||'');
