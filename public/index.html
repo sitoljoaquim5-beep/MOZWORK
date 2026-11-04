@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#087c36">
+<title>MOZWORK | Trabalho Digital</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f3f6f4;font-family:Arial,sans-serif;color:#17251d}
+header{background:#087c36;color:white;padding:20px;display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:27px;font-weight:bold}
+button{border:0;border-radius:12px;padding:14px 20px;font-size:16px;font-weight:bold;cursor:pointer}
+.yellow{background:#ffd500;color:#17351f}
+.green{background:#087c36;color:white}
+.hero{background:linear-gradient(135deg,#087c36,#005b2d);color:white;text-align:center;padding:75px 20px 90px;border-radius:0 0 35px 35px}
+.hero h1{font-size:43px;margin:20px 0}
+.hero h1 span{color:#ffd500}
+.hero p{font-size:18px;line-height:1.7}
+.section{max-width:1000px;margin:45px auto;padding:20px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:15px}
+.card{background:white;border-radius:22px;padding:25px;margin-bottom:15px;box-shadow:0 5px 20px #0000000b}
+.card h3{color:#087c36}
+.icon{font-size:35px}
+input,textarea,select{width:100%;padding:15px;border:1px solid #ddd;border-radius:12px;margin:9px 0;font-size:16px}
+.hidden{display:none!important}
+.balance{font-size:38px;color:#087c36;font-weight:bold}
+nav{display:flex;gap:7px;flex-wrap:wrap}
+nav button{padding:10px;font-size:13px}
+.worker-nav{
+ display:flex;
+ gap:10px;
+ flex-wrap:wrap;
+ margin:20px 0 25px;
+ padding:14px;
+ background:white;
+ border-radius:18px;
+ box-shadow:0 5px 20px #0000000b;
+}
+.worker-nav button{
+ flex:1;
+ min-width:125px;
+ padding:13px 9px;
+ font-size:14px;
+}
+footer{text-align:center;padding:30px;color:#087c36}
+@media(max-width:650px){
+ .grid{grid-template-columns:1fr 1fr}
+ .hero h1{font-size:35px}
+ header{padding:12px;align-items:flex-start;gap:10px;flex-wrap:wrap}
+ .logo{font-size:21px}
+ #mainNav{width:100%;display:flex;gap:6px;flex-wrap:wrap}
+ #mainNav button{flex:1;padding:11px 7px;font-size:12px;min-width:90px}
+ .worker-nav button{font-size:13px;padding:13px 7px;min-width:125px}
+}
+</style>
+</head>
+<body>
+
+<header>
+<div class="logo">🇲🇿 MOZWORK</div>
+<nav id="mainNav">
+<button id="navLogin" onclick="page('login')">Entrar</button>
+<button id="navRegister" class="yellow" onclick="page('register')">Registo</button>
+</nav>
+</header>
+
+<section id="home" class="hero">
+<h1>Faça tarefas.<br><span>Ganhe dinheiro.</span></h1>
+<p>MOZWORK é uma plataforma de microtarefas criada para Moçambique.</p>
+<p>Realize tarefas e receba recompensas depois da aprovação.</p>
+<button class="yellow" onclick="page('register')">CRIAR CONTA</button>
+<button style="background:white;color:#087c36" onclick="page('login')">ENTRAR</button>
+</section>
+
+<section class="section" id="publicAds"><h2>📢 Publicidade</h2><div id="publicAdList"></div></section>
+
+
+<section class="section">
+<div class="card">
+<h2>📣 Anuncie na MOZWORK</h2>
+<p>Empresas podem solicitar a divulgação dos seus produtos e serviços.</p>
+<form id="adRequestForm" onsubmit="sendAdRequest(event)">
+<input name="company" placeholder="Nome da empresa" required>
+<input name="phone" placeholder="Telefone de contacto" required>
+<input name="title" placeholder="Título do anúncio" required>
+<textarea name="description" placeholder="Descrição do anúncio"></textarea>
+<input name="imageUrl" placeholder="Link da imagem (opcional)">
+<input name="targetUrl" placeholder="Link do seu site ou página https://" required>
+<button class="green">Enviar pedido de publicidade</button>
+</form>
+<p style="margin-top:14px">
+ <a class="yellow" href="mailto:sitoljoaquim5@gmail.com?subject=Pedido%20de%20publicidade%20MOZWORK">📧 Negociar publicidade por email</a>
+</p>
+<p>
+ <a class="yellow" href="mailto:sitoljoaquim5@gmail.com?subject=Pedido%20de%20publicacao%20de%20tarefas%20pagas%20MOZWORK">📋 Solicitar publicação de tarefas pagas</a>
+</p>
+<p>Contacto comercial: <strong>sitoljoaquim5@gmail.com</strong></p>
+</div></section>
+<section class="section" id="how">
+<h2 style="text-align:center">Como funciona?</h2>
+<div class="grid">
+<div class="card"><div class="icon">👤</div><h3>1. Criar conta</h3><p>Registe-se com o seu telefone.</p></div>
+<div class="card"><div class="icon">📋</div><h3>2. Fazer tarefas</h3><p>Complete as tarefas disponíveis.</p></div>
+<div class="card"><div class="icon">💰</div><h3>3. Ganhar</h3><p>Receba após aprovação.</p></div>
+</div>
+</section>
+
+<section id="register" class="section hidden">
+<div class="card">
+<h2>Criar conta</h2>
+<form id="registerForm">
+<input name="name" placeholder="Nome completo" required>
+<input name="phone" placeholder="Número de telefone" required>
+<input name="pin" type="password" placeholder="PIN (mínimo 4 dígitos)" minlength="4" required>
+<button class="green">CRIAR CONTA</button>
+</form>
+</div>
+</section>
+
+<section id="login" class="section hidden">
+<div class="card">
+<h2>Entrar na MOZWORK</h2>
+<form id="loginForm">
+<input name="phone" placeholder="Telefone" required>
+<input name="pin" type="password" placeholder="PIN" required>
+<button class="green">ENTRAR</button>
+</form>
+</div>
+</section>
+
+<section id="dashboard" class="section hidden">
+<div id="workerAds" class="card"><h3>📢 Anúncios</h3></div>
+
+
+<div class="card">
+<h2>Bem-vindo, <span id="username"></span>!</h2>
+<p>Saldo disponível</p>
+<div class="balance"><span id="balance">0.00</span> MT</div>
+<button class="green" onclick="panel('withdraw')">💸 Pedir levantamento</button>
+</div>
+
+<div class="grid">
+<button class="card" onclick="panel('tasks')">📋<br>Tarefas</button>
+<button class="card" onclick="panel('mine')">✅<br>Minhas tarefas</button>
+<button class="card" onclick="panel('history')">📜<br>Histórico</button>
+<button class="card" onclick="panel('support')">✉️<br>Suporte</button>
+</div>
+<div id="panel"></div>
+<button onclick="logout()">Terminar sessão</button>
+</section>
+
+<section id="admin" class="section hidden">
+<div class="card">
+<h2>⚙️ ADMIN MOZWORK</h2>
+<div id="stats"></div>
+</div>
+<div class="grid">
+<button class="card" onclick="adminPanel('tasks')">➕ Criar tarefas</button>
+<button class="card" onclick="adminPanel('users')">👥 Utilizadores</button>
+<button class="card" onclick="adminPanel('proofs')">📸 Aprovar provas</button>
+<button class="card" onclick="adminPanel('withdrawals')">💸 Levantamentos</button>
+<button class="card" onclick="adminPanel('messages')">✉️ Mensagens</button>
+<button class="card" onclick="adminPanel('bots')">🤖 Bots automáticos</button>
+<button class="card" onclick="adminPanel('ads')">📢 Publicidade</button>
+</div>
+<div id="adminPanel"></div>
+<button onclick="logout()">Sair do Admin</button>
+</section>
+
+<footer style="background:#003e2c;color:white;padding:30px 18px;margin-top:35px;text-align:center;">
+  <div style="max-width:850px;margin:auto;">
+    <h2 style="color:#ffd500;margin-bottom:8px;">🇲🇿 MOZWORK</h2>
+    <p>Trabalho Digital. Ganhos Reais.</p>
+
+    <div style="margin:25px auto;padding:20px;background:#ffffff12;border-radius:12px;">
+      <h3 style="color:#ffd500;">📞 CONTACTOS COMERCIAIS</h3>
+      <p>Para publicidade, parcerias e publicação de tarefas pagas, contacte a nossa equipa comercial.</p>
+
+      <p style="font-size:16px;">
+        📧 <strong>sitoljoaquim5@gmail.com</strong>
+      </p>
+
+      <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:18px;">
+        <a href="mailto:sitoljoaquim5@gmail.com?subject=Publicidade%20na%20MOZWORK"
+           style="background:#ffd500;color:#003e2c;padding:12px 16px;border-radius:8px;text-decoration:none;font-weight:bold;">
+          📢 Negociar publicidade
+        </a>
+
+        <a href="mailto:sitoljoaquim5@gmail.com?subject=Publicacao%20de%20tarefas%20pagas%20na%20MOZWORK"
+           style="background:#ffffff;color:#003e2c;padding:12px 16px;border-radius:8px;text-decoration:none;font-weight:bold;">
+          📋 Publicar tarefas pagas
+        </a>
+
+        <a href="mailto:sitoljoaquim5@gmail.com?subject=Parceria%20comercial%20MOZWORK"
+           style="background:#008447;color:white;padding:12px 16px;border-radius:8px;text-decoration:none;font-weight:bold;">
+          🤝 Propor parceria
+        </a>
+      </div>
+    </div>
+
+    <p style="font-size:13px;color:#d5e5dc;">
+      © 2026 MOZWORK. Todos os direitos reservados.
+    </p>
+  </div>
+</footer>
+
+<script>
+async function request(url,data){
+const r=await fetch('/api'+url,{
+method:data?'POST':'GET',
+headers:{'Content-Type':'application/json'},
+credentials:'same-origin',
+body:data?JSON.stringify(data):undefined
+});
+const d=await r.json();
+if(!r.ok)throw Error(d.error||'Erro');
+return d;
+}
+function page(id){
+  document.querySelectorAll('section').forEach(section=>{
+    section.classList.add('hidden');
+  });
+
+  const target = document.getElementById(id);
+
+  if(!target){
+    alert('Página não encontrada: '+id);
+    return;
+  }
+
+  target.classList.remove('hidden');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+async function loginForm(e){
+e.preventDefault();
+try{
+let f=new FormData(e.target);
+let d=await request('/login',Object.fromEntries(f));
+enter(d.user);
+}catch(x){alert(x.message)}
+}
+async function registerForm(e){
+e.preventDefault();
+try{
+let f=new FormData(e.target);
+let d=await request('/register',Object.fromEntries(f));
+enter(d.user);
+}catch(x){alert(x.message)}
+}
+function updateMainNav(role){
+ const admin = role === 'admin';
+ document.getElementById('mainNav').classList.add('hidden');
+ 
+}
+
+function resetMainNav(){
+ document.getElementById('mainNav').classList.remove('hidden');
+ 
+}
+
+function openWorkerPanel(type){
+ page('dashboard');
+ panel(type);
+}
+
+function enter(u){
+ updateMainNav(u.role);
+ if(u.role==='admin'){page('admin');loadAdmin()}
+ else{page('dashboard');loadUser()}
+}
+async function loadUser(){
+let d=await request('/me');
+document.getElementById('username').textContent=d.user.name;
+document.getElementById('balance').textContent=Number(d.user.balance).toFixed(2);
+panel('tasks');
+}
+async function panel(type){
+let p=document.getElementById('panel');
+try{
+if(type==='tasks'){
+ let d=await request('/tasks');
+ p.innerHTML='<h2>Tarefas disponíveis</h2>'+(
+ d.tasks.length?d.tasks.map(t=>
+ `<div class="card">
+  <h3>${esc(t.title)}</h3>
+  <p>${esc(t.description)}</p>
+  <b>${Number(t.reward).toFixed(2)} MT</b>
+  <p><button class="green" onclick="acceptTask(${t.id})">Aceitar tarefa</button></p>
+ </div>`
+ ).join(''):'<p>Não existem tarefas disponíveis neste momento.</p>');
+}
+if(type==='mine'){
+ let d=await request('/my-submissions');
+ p.innerHTML='<h2>Minhas tarefas</h2>'+(
+ d.items.length?d.items.map(x=>
+ `<div class="card">
+  <h3>${esc(x.task?.title||x.taskTitle||'Tarefa')}</h3>
+  <p>Prémio: ${Number(x.reward||0).toFixed(2)} MT</p>
+  <p>Estado: <b>${esc(x.status)}</b></p>
+  ${x.status==='accepted'?`
+   <form onsubmit="submitTask(event,'${x.task?.id||x.task}')">
+    <label>Tipo de comprovativo</label>
+    <select name="proofType" onchange="proofFields(this,${x.task?.id||x.task})" required>
+     <option value="photo">Somente fotografia</option>
+     <option value="link">Somente link</option>
+     <option value="photo_description">Fotografia + descrição</option>
+    </select>
+    <div id="proof-fields-${x.task?.id||x.task}">
+     <label>Fotografia da prova</label>
+     <input type="file" name="photo" accept="image/jpeg,image/png,image/webp,image/gif" required>
+    </div>
+    <button class="green">Enviar comprovativo</button>
+   </form>`:''}
+ </div>`
+ ).join(''):'<p>Ainda não aceitou nenhuma tarefa.</p>');
+}
+if(type==='withdraw'){
+p.innerHTML=`<div class="card"><h2>Levantamento</h2><p>Mínimo: 20 MT · Taxa: 10%</p><form onsubmit="withdraw(event)"><input name="amount" type="number" min="20" placeholder="Valor" required><select name="method"><option>M-Pesa</option><option>e-Mola</option></select><input name="phone" placeholder="Número de pagamento" required><button class="green">Enviar pedido</button></form></div>`;
+}
+if(type==='history'){
+let d=await request('/withdrawals');
+p.innerHTML='<h2>Histórico</h2>'+d.items.map(x=>`<div class="card">${x.amount} MT — ${x.status}</div>`).join('');
+}
+if(type==='support'){
+ let d=await request('/messages');
+ p.innerHTML=`
+  <div class="card">
+   <h2>💬 Suporte MOZWORK</h2>
+   <p>Converse directamente com a nossa equipa de administração.</p>
+   <div style="max-height:400px;overflow-y:auto">
+    ${d.items.map(x=>`
+     <div class="card" style="background:${x.sender==='admin'?'#dcf5e7':'#f4f7f6'}">
+      <strong>${x.sender==='admin'?'🛡️ Administração':'👤 Você'}</strong>
+      <p style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(x.text)}</p>
+      <small>${esc(x.createdAt||'')}</small>
+     </div>
+    `).join('')||'<p>Ainda não tem mensagens. Envie a sua primeira mensagem.</p>'}
+   </div>
+   <form onsubmit="sendMessage(event)">
+    <textarea name="text" maxlength="2000" placeholder="Escreva a sua mensagem..." required></textarea>
+    <button class="green">📨 Enviar mensagem</button>
+   </form>
+   <button type="button" onclick="panel('support')">🔄 Actualizar conversa</button>
+  </div>`;
+}
+}catch(e){alert(e.message)}
+}
+async function acceptTask(id){
+ if(!confirm('Deseja aceitar esta tarefa?'))return;
+ try{
+  const d=await request('/tasks/'+id+'/accept',{});
+  alert(d.message);
+  panel('mine');
+ }catch(e){alert(e.message)}
+}
+
+function proofFields(select,id){
+ const box=document.getElementById('proof-fields-'+id);
+ if(!box)return;
+ if(select.value==='photo'){
+  box.innerHTML='<label>Fotografia da prova</label><input type="file" name="photo" accept="image/jpeg,image/png,image/webp,image/gif" required>';
+ }else if(select.value==='link'){
+  box.innerHTML='<label>Link da prova</label><input type="url" name="proof" placeholder="https://..." required>';
+ }else{
+  box.innerHTML='<label>Fotografia da prova</label><input type="file" name="photo" accept="image/jpeg,image/png,image/webp,image/gif" required><label>Descrição da prova</label><textarea name="description" minlength="3" placeholder="Explique a prova..." required></textarea>';
+ }
+}
+
+async function submitTask(e,id){
+ e.preventDefault();
+ try{
+  const fd=new FormData(e.target);
+  const r=await fetch('/api/tasks/'+id+'/submit',{
+   method:'POST',
+   credentials:'same-origin',
+   body:fd
+  });
+  const d=await r.json();
+  if(!r.ok)throw Error(d.error||'Erro ao enviar prova.');
+  alert(d.message||'Prova enviada!');
+  panel('mine');
+ }catch(x){alert(x.message)}
+}
+async function withdraw(e){
+e.preventDefault();
+try{
+let d=await request('/withdrawals',Object.fromEntries(new FormData(e.target)));
+alert(d.message);
+loadUser();
+}catch(x){alert(x.message)}
+}
+async function sendMessage(e){
+ e.preventDefault();
+ const form=e.target;
+ const message=form.elements.text.value.trim();
+ if(!message)return;
+ try{
+  await request('/messages',{text:message});
+  await panel('support');
+ }catch(x){
+  alert(x.message);
+ }
+}
+async function logout(){
+ try{
+  await fetch('/api/logout',{method:'POST',credentials:'same-origin'});
+  resetMainNav();
+  page('home');
+ }catch(e){
+  alert('Não foi possível terminar a sessão.');
+ }
+}
+async function loadAdmin(){
+try{
+let d=await request('/admin/summary');
+document.getElementById('stats').innerHTML=
+`Utilizadores: ${d.users}<br>Tarefas: ${d.tasks}<br>Provas pendentes: ${d.pendingSubmissions}<br>Levantamentos pendentes: ${d.pendingWithdrawals}`;
+adminPanel('proofs');
+}catch(e){alert(e.message)}
+}
+async function adminPanel(type){
+let p=document.getElementById('adminPanel');
+try{
+if(type==='tasks'){
+let d=await request('/admin/tasks');
+p.innerHTML=`<div class="card"><h2>Criar tarefa</h2><form onsubmit="createTask(event)"><input name="title" placeholder="Título" required><textarea name="description" placeholder="Instruções" required></textarea><input name="reward" type="number" step=".01" placeholder="Recompensa MT" required><button class="green">Publicar</button></form></div>`+
+d.items.map(t=>`<div class="card">${esc(t.title)} — ${t.reward} MT</div>`).join('');
+}
+
+if(type==='bots'){
+let d=await request('/admin/bots');
+p.innerHTML=`<div class="card">
+<h2>🤖 Criar bot automático</h2>
+<form onsubmit="createBot(event)">
+<input name="name" placeholder="Nome do bot" required>
+<input name="title" placeholder="Título da tarefa" required>
+<textarea name="description" placeholder="Descrição e instruções" required></textarea>
+<input name="reward" type="number" min="0.01" step="0.01" placeholder="Recompensa MT" required>
+<input name="slots" type="number" min="0" placeholder="Vagas (0 = sem limite)">
+<input name="quantity" type="number" min="1" value="10" placeholder="Quantidade de tarefas">
+<label>Intervalo entre publicações (minutos)</label>
+<input name="intervalMinutes" type="number" min="1" value="10" required>
+<label>Data/hora de início (opcional)</label>
+<input name="startAt" type="datetime-local">
+<button class="green">Criar e activar bot</button>
+</form></div>`+
+d.items.map(b=>`<div class="card">
+<h3>🤖 ${esc(b.name)}</h3>
+<p>${esc(b.title)}</p>
+<p>Intervalo: ${b.intervalMinutes} min | Restantes: ${b.remaining}</p>
+<p>Estado: <b>${b.active?'Activo':'Pausado/Concluído'}</b></p>
+<p>Próxima publicação: ${esc(b.nextRun)}</p>
+<button class="green" onclick="toggleBot('${b.id}',${b.active?0:1})">${b.active?'Pausar':'Activar'}</button>
+<button onclick="deleteBot('${b.id}')">Eliminar</button>
+</div>`).join('');
+}
+
+if(type==='ads'){
+let d=await request('/admin/ads');
+let q=await request('/admin/ad-requests');
+p.innerHTML=`<div class="card"><h2>📢 Criar campanha publicitária</h2>
+<form onsubmit="createAd(event)">
+<input name="title" placeholder="Nome do anúncio" required>
+<textarea name="description" placeholder="Descrição"></textarea>
+<input name="imageUrl" placeholder="Link da imagem (opcional)">
+<input name="targetUrl" placeholder="Link de destino https://" required>
+<label>Início da campanha</label><input name="startAt" type="datetime-local" required>
+<label>Fim da campanha</label><input name="endAt" type="datetime-local" required>
+<button class="green">Criar campanha</button></form></div>
+<h2>Campanhas</h2>`+
+d.items.map(a=>`<div class="card"><h3>${esc(a.title)}</h3>
+<p>Visualizações: ${a.impressions} | Cliques: ${a.clicks}</p>
+<p>Estado: ${a.active?'Activa':'Pausada'}</p>
+<button onclick="toggleAd('${a.id}',${a.active?0:1})">${a.active?'Pausar':'Activar'}</button>
+<button onclick="deleteAd('${a.id}')">Eliminar</button></div>`).join('')+
+'<h2>Pedidos de empresas</h2>'+
+q.items.map(a=>`<div class="card"><h3>${esc(a.company)} — ${esc(a.title)}</h3>
+<p>${esc(a.phone)} | ${esc(a.description||'')}</p><b>${esc(a.status)}</b>
+${a.status==='pending'?`<button class="green" onclick="reviewAdRequest('${a.id}','approved')">Aprovar (30 dias)</button><button onclick="reviewAdRequest('${a.id}','rejected')">Rejeitar</button>`:''}</div>`).join('');
+}
+if(type==='users'){
+let d=await request('/admin/users');
+p.innerHTML='<h2>Utilizadores</h2>'+d.items.map(u=>`<div class="card">${esc(u.name)} — ${esc(u.phone)} — ${u.balance} MT</div>`).join('');
+}
+if(type==='proofs'){
+let d=await request('/admin/submissions');
+p.innerHTML='<h2>Aprovar provas</h2>'+d.items.map(x=>`<div class="card">${esc(x.user?.name||'')}<p>${esc(x.proof)}</p><b>${x.status}</b>${x.status==='pending'?`<button class="green" onclick="review('${x.id}','approved')">Aprovar</button><button onclick="review('${x.id}','rejected')">Rejeitar</button>`:''}</div>`).join('');
+}
+if(type==='withdrawals'){
+let d=await request('/withdrawals');
+p.innerHTML='<h2>Levantamentos</h2>'+d.items.map(x=>`<div class="card">${x.amount} MT — ${x.method} — ${x.phone} — ${x.status}${x.status==='pending'?`<button onclick="reviewWithdrawal('${x.id}','paid')">Marcar pago</button><button onclick="reviewWithdrawal('${x.id}','rejected')">Rejeitar</button>`:''}</div>`).join('');
+}
+if(type==='messages'){
+let d=await request('/admin/messages');
+p.innerHTML='<h2>Mensagens</h2>'+d.items.map(x=>`<div class="card">${esc(x.user?.name||'')}<p>${esc(x.text)}</p><form onsubmit="reply(event,'${x.user?.id}')"><input name="text" placeholder="Responder" required><button class="green">Enviar</button></form></div>`).join('');
+}
+}catch(e){alert(e.message)}
+}
+
+async function createBot(e){
+ e.preventDefault();
+ try{
+  const data=Object.fromEntries(new FormData(e.target));
+  await request('/admin/bots',data);
+  alert('Bot criado! O servidor publicará as tarefas automaticamente.');
+  adminPanel('bots');
+ }catch(x){alert(x.message)}
+}
+async function toggleBot(id,active){
+ try{
+  const r=await fetch('/api/admin/bots/'+id,{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({active})});
+  const d=await r.json();if(!r.ok)throw Error(d.error||'Erro');
+  adminPanel('bots');
+ }catch(e){alert(e.message)}
+}
+async function deleteBot(id){
+ if(!confirm('Eliminar este bot?'))return;
+ try{
+  const r=await fetch('/api/admin/bots/'+id,{method:'DELETE',credentials:'same-origin'});
+  const d=await r.json();if(!r.ok)throw Error(d.error||'Erro');
+  adminPanel('bots');
+ }catch(e){alert(e.message)}
+}
+
+
+async function createAd(e){
+ e.preventDefault();
+ try{
+  const data=Object.fromEntries(new FormData(e.target));
+  await request('/admin/ads',data);
+  alert('Campanha criada.');
+  adminPanel('ads');
+ }catch(x){alert(x.message)}
+}
+async function toggleAd(id,active){
+ try{
+  const r=await fetch('/api/admin/ads/'+id,{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({active})});
+  const d=await r.json();if(!r.ok)throw Error(d.error||'Erro');
+  adminPanel('ads');
+ }catch(e){alert(e.message)}
+}
+async function deleteAd(id){
+ if(!confirm('Eliminar campanha?'))return;
+ try{
+  const r=await fetch('/api/admin/ads/'+id,{method:'DELETE',credentials:'same-origin'});
+  const d=await r.json();if(!r.ok)throw Error(d.error||'Erro');
+  adminPanel('ads');
+ }catch(e){alert(e.message)}
+}
+async function reviewAdRequest(id,status){
+ try{
+  const r=await fetch('/api/admin/ad-requests/'+id,{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
+  const d=await r.json();if(!r.ok)throw Error(d.error||'Erro');
+  adminPanel('ads');
+ }catch(e){alert(e.message)}
+}
+async function sendAdRequest(e){
+ e.preventDefault();
+ try{
+  const r=await fetch('/api/ad-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(e.target)))});
+  const d=await r.json();if(!r.ok)throw Error(d.error||'Erro');
+  alert(d.message);e.target.reset();
+ }catch(x){alert(x.message)}
+}
+async function loadAds(){
+ try{
+  const r=await fetch('/api/ads');const d=await r.json();
+  const render=a=>`<div class="card">
+  ${a.imageUrl?`<img src="${esc(a.imageUrl)}" alt="Publicidade" style="width:100%;max-height:220px;object-fit:cover;border-radius:12px">`:''}
+  <h3>${esc(a.title)}</h3><p>${esc(a.description||'')}</p>
+  <button class="yellow" onclick="openAd('${a.id}')">Ver anúncio</button></div>`;
+  const content=d.items.map(render).join('')||'<p>Não há anúncios activos neste momento.</p>';
+  const pub=document.getElementById('publicAdList');
+  const worker=document.getElementById('workerAds');
+  if(pub)pub.innerHTML=content;
+  if(worker)worker.innerHTML='<h3>📢 Anúncios</h3>'+content;
+ }catch(e){console.log('Publicidade indisponível',e)}
+}
+async function openAd(id){
+ try{
+  const r=await fetch('/api/ads/'+id+'/click');const d=await r.json();
+  if(!r.ok)throw Error(d.error||'Anúncio indisponível');
+  window.open(d.url,'_blank','noopener');
+ }catch(e){alert(e.message)}
+}
+
+async function createTask(e){
+e.preventDefault();
+try{await request('/admin/tasks',Object.fromEntries(new FormData(e.target)));alert('Tarefa criada');adminPanel('tasks')}
+catch(x){alert(x.message)}
+}
+async function review(id,status){
+try{await fetch('/api/admin/submissions/'+id,{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});adminPanel('proofs');}
+catch(e){alert(e.message)}
+}
+async function reviewWithdrawal(id,status){
+try{await fetch('/api/admin/withdrawals/'+id,{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});adminPanel('withdrawals');}
+catch(e){alert(e.message)}
+}
+async function reply(e,userId){
+e.preventDefault();
+try{await fetch('/api/messages',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,text:new FormData(e.target).get('text')})});alert('Resposta enviada');}
+catch(x){alert(x.message)}
+}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+resetMainNav();
+loadAds();
+document.getElementById('loginForm').addEventListener('submit',loginForm);
+document.getElementById('registerForm').addEventListener('submit',registerForm);
+(async()=>{try{let d=await request('/me');enter(d.user)}catch{page('home')}})();
+</script>
+</body>
+</html>

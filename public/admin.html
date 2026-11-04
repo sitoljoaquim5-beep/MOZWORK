@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MOZWORK | Administração</title>
+<style>
+:root{
+--green:#008447;
+--dark:#003e2c;
+--yellow:#ffd500;
+--bg:#f4f7f6;
+--text:#17342b;
+--muted:#71847b;
+--white:#fff;
+--border:#e2ece7;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font-family:Arial,sans-serif;color:var(--text)}
+button,input,textarea,select{font:inherit}
+button{cursor:pointer;border:0;border-radius:9px;padding:11px 15px;background:var(--green);color:white;font-weight:bold}
+button:hover{opacity:.88}
+button.secondary{background:#e2ece7;color:var(--dark)}
+button.danger{background:#c0392b}
+button.warning{background:#d99b00}
+input,textarea,select{width:100%;padding:12px;border:1px solid var(--border);border-radius:9px;margin:6px 0 13px;background:white}
+textarea{min-height:85px;resize:vertical}
+label{font-size:13px;font-weight:bold}
+.login{max-width:420px;margin:9vh auto;background:white;padding:28px;border-radius:18px;box-shadow:0 8px 35px #003e2c15}
+.logo{font-size:25px;font-weight:900;color:var(--green)}
+.logo span{color:#d5a900}
+.login h2{margin-top:25px}
+header{background:var(--dark);color:white;padding:17px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+header .logo{color:white}
+header .logo span{color:var(--yellow)}
+.layout{display:flex;min-height:calc(100vh - 70px)}
+aside{width:230px;background:white;padding:16px;border-right:1px solid var(--border);flex-shrink:0}
+aside button{display:block;width:100%;text-align:left;margin:5px 0;background:transparent;color:var(--text)}
+aside button.active,aside button:hover{background:#e5f3ec;color:var(--green)}
+main{padding:22px;width:100%;max-width:1400px;margin:auto}
+h1{font-size:25px;margin-top:0}
+h2{font-size:19px}
+.muted{color:var(--muted);font-size:13px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:13px;margin:20px 0}
+.card,.box{background:white;border:1px solid var(--border);border-radius:13px;padding:17px;margin-bottom:15px}
+.card strong{font-size:28px;display:block;color:var(--green);margin-top:8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:13px}
+.tablewrap{overflow-x:auto;background:white;border-radius:12px;border:1px solid var(--border)}
+table{border-collapse:collapse;width:100%;min-width:650px}
+th,td{text-align:left;padding:12px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:top}
+th{background:#edf5f0;color:var(--dark)}
+td button{padding:7px 9px;font-size:12px;margin:2px}
+.badge{display:inline-block;padding:5px 8px;border-radius:20px;background:#e5f3ec;color:var(--green);font-size:11px}
+.badge.red{background:#fde9e7;color:#b52b20}
+.badge.yellow{background:#fff4c7;color:#8b6800}
+.formbox{max-width:650px}
+.actions{display:flex;gap:7px;flex-wrap:wrap}
+.hidden{display:none!important}
+#notice{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--dark);color:white;padding:13px 20px;border-radius:10px;display:none;z-index:10;max-width:90%}
+.mobilemenu{display:none}
+@media(max-width:700px){
+.layout{display:block}
+aside{width:100%;display:flex;overflow-x:auto;padding:8px}
+aside button{width:auto;white-space:nowrap}
+main{padding:14px}
+header{padding:13px}
+}
+</style>
+</head>
+<body>
+
+<section id="loginScreen" class="login">
+<div class="logo">MOZ<span>WORK</span></div>
+<p class="muted">Painel de controlo administrativo</p>
+<h2>Entrar como administrador</h2>
+<form id="loginForm">
+<label>Telefone do administrador</label>
+<input id="phone" type="tel" required placeholder="Número de telefone">
+<label>PIN ou senha</label>
+<input id="pin" type="password" required placeholder="PIN de acesso">
+<button style="width:100%">Entrar no painel</button>
+</form>
+<p id="loginError" class="muted"></p>
+</section>
+
+<section id="appScreen" class="hidden">
+<header>
+<div class="logo">MOZ<span>WORK</span> <small style="font-size:12px">ADMIN</small></div>
+<div class="actions">
+<span id="adminName"></span>
+<button class="secondary" onclick="refresh()">Actualizar</button>
+<button class="danger" onclick="logout()">Sair</button>
+</div>
+</header>
+
+<div class="layout">
+<aside id="menu">
+<button class="active" data-page="overview">📊 Visão geral</button>
+<button data-page="users">👥 Utilizadores</button>
+<button data-page="tasks">📋 Tarefas</button>
+<button data-page="submissions">📝 Provas</button>
+<button data-page="withdrawals">💰 Levantamentos</button>
+<button data-page="messages">💬 Mensagens</button>
+<button data-page="bots">🤖 Bots automáticos</button>
+<button data-page="ads">📢 Publicidade</button>
+<button data-page="requests">📨 Pedidos de anúncios</button>
+</aside>
+
+<main>
+<div id="content"></div>
+</main>
+</div>
+</section>
+
+<div id="notice"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+let currentPage='overview';
+let selectedConversationId=null;
+
+function esc(v){
+ return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function money(v){return Number(v||0).toFixed(2)+' MT'}
+function date(v){return v?new Date(v).toLocaleString('pt-MZ'):'—'}
+function notice(t){
+ const n=$('notice');n.textContent=t;n.style.display='block';
+ setTimeout(()=>n.style.display='none',3500);
+}
+async function api(url,options={}){
+ const r=await fetch(url,{
+  credentials:'same-origin',
+  ...options,
+  headers:{'Content-Type':'application/json',...(options.headers||{})}
+ });
+ let data={};
+ try{data=await r.json()}catch(e){}
+ if(!r.ok)throw Error(data.error||'Erro na operação.');
+ return data;
+}
+async function send(url,method,data){
+ return api(url,{method,body:JSON.stringify(data)});
+}
+function table(headers,rows){
+ return `<div class="tablewrap"><table><thead><tr>${headers.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${rows||'<tr><td colspan="10">Nenhum registo encontrado.</td></tr>'}</tbody></table></div>`;
+}
+function field(label,name,type='text',required=true,extra=''){
+ return `<label>${label}</label><input name="${name}" type="${type}" ${required?'required':''} ${extra}>`;
+}
+function area(label,name,required=true){
+ return `<label>${label}</label><textarea name="${name}" ${required?'required':''}></textarea>`;
+}
+function formData(form){
+ return Object.fromEntries(new FormData(form).entries());
+}
+function actions(items){
+ return `<div class="actions">${items.join('')}</div>`;
+}
+function btn(text,fn,cls=''){
+ return `<button class="${cls}" onclick="${fn}">${text}</button>`;
+}
+
+$('loginForm').addEventListener('submit',async e=>{
+ e.preventDefault();
+ $('loginError').textContent='A verificar acesso...';
+ try{
+  const d=await send('/api/login','POST',{
+   phone:$('phone').value,
+   pin:$('pin').value
+  });
+  if(d.user.role!=='admin'){
+   await api('/api/logout',{method:'POST'});
+   throw Error('Esta conta não é de administrador.');
+  }
+  openApp(d.user);
+ }catch(err){$('loginError').textContent=err.message}
+});
+
+async function checkSession(){
+ try{
+  const d=await api('/api/me');
+  if(d.user.role==='admin')openApp(d.user);
+  else await logout();
+ }catch(e){}
+}
+function openApp(user){
+ $('loginScreen').classList.add('hidden');
+ $('appScreen').classList.remove('hidden');
+ $('adminName').textContent=user.name||'Administrador';
+ refresh();
+}
+async function logout(){
+ try{await api('/api/logout',{method:'POST'})}catch(e){}
+ $('appScreen').classList.add('hidden');
+ $('loginScreen').classList.remove('hidden');
+ $('pin').value='';
+}
+$('menu').addEventListener('click',e=>{
+ const b=e.target.closest('button[data-page]');
+ if(!b)return;
+ currentPage=b.dataset.page;
+ document.querySelectorAll('#menu button').forEach(x=>x.classList.toggle('active',x===b));
+ refresh();
+});
+async function refresh(){
+ try{
+  if(currentPage==='overview')return await overview();
+  if(currentPage==='users')return await users();
+  if(currentPage==='tasks')return await tasks();
+  if(currentPage==='submissions')return await submissions();
+  if(currentPage==='withdrawals')return await withdrawals();
+  if(currentPage==='messages')return await messages();
+  if(currentPage==='bots')return await bots();
+  if(currentPage==='ads')return await ads();
+  if(currentPage==='requests')return await requests();
+ }catch(e){$('content').innerHTML=`<div class="box">Erro: ${esc(e.message)}</div>`}
+}
+async function overview(){
+ const d=await api('/api/admin/summary');
+ $('content').innerHTML=`
+ <h1>Visão geral</h1><p class="muted">Resumo da actividade da plataforma MOZWORK.</p>
+ <div class="cards">
+ ${[['Utilizadores',d.users],['Tarefas',d.tasks],['Provas pendentes',d.pendingSubmissions],['Levantamentos pendentes',d.pendingWithdrawals],['Mensagens não lidas',d.messages]].map(x=>`<div class="card">${x[0]}<strong>${x[1]}</strong></div>`).join('')}
+ </div>
+ <div class="box"><h2>Centro de administração</h2><p>Gerencie todas as operações da plataforma através do menu.</p><p class="muted">MOZWORK — Trabalho Digital. Ganhos Reais.</p></div>`;
+}
+async function users(){
+ const d=await api('/api/admin/users');
+ const rows=d.items.map(u=>`<tr><td>${esc(u.name)}</td><td>${esc(u.phone)}</td><td>${money(u.balance)}</td><td>${u.blocked?'<span class="badge red">Bloqueado</span>':'<span class="badge">Activo</span>'}</td><td>${date(u.createdAt)}</td><td>${btn(u.blocked?'Desbloquear':'Bloquear',`blockUser(${u.id},${!u.blocked})`,u.blocked?'':'danger')}</td></tr>`).join('');
+ $('content').innerHTML=`<h1>Utilizadores</h1><p class="muted">Contas registadas na plataforma.</p>${table(['Nome','Telefone','Saldo','Estado','Registo','Acção'],rows)}`;
+}
+async function blockUser(id,blocked){
+ if(!confirm(blocked?'Bloquear este utilizador?':'Desbloquear este utilizador?'))return;
+ try{await send('/api/admin/users/'+id,'PATCH',{blocked});notice('Utilizador actualizado.');users()}catch(e){notice(e.message)}
+}
+async function tasks(){
+ const d=await api('/api/admin/tasks');
+ const rows=d.items.map(t=>`<tr><td>${esc(t.title)}</td><td>${money(t.reward)}</td><td>${t.slots}</td><td>${t.active?'<span class="badge">Activa</span>':'<span class="badge red">Inactiva</span>'}</td><td>${date(t.publishedAt)}</td><td>${btn(t.active?'Desactivar':'Activar',`taskToggle(${t.id},${!t.active})`,'secondary')}</td></tr>`).join('');
+ $('content').innerHTML=`<h1>Gestão de tarefas</h1>
+ <div class="box formbox"><h2>Criar tarefa</h2>
+ <form id="taskForm">${field('Título','title')}${area('Descrição','description')}
+ <div class="grid">${field('Recompensa (MT)','reward','number',true,'min="0.01" step="0.01"')}${field('Vagas','slots','number',false,'min="0" value="0"')}</div>
+ <button>Publicar tarefa</button></form></div>
+ <h2>Tarefas existentes</h2>${table(['Tarefa','Recompensa','Vagas','Estado','Publicação','Acção'],rows)}`;
+ $('taskForm').onsubmit=async e=>{
+  e.preventDefault();
+  try{await send('/api/admin/tasks','POST',formData(e.target));notice('Tarefa criada.');tasks()}catch(x){notice(x.message)}
+ };
+}
+async function taskToggle(id,active){
+ try{await send('/api/admin/tasks/'+id,'PATCH',{active});tasks()}catch(e){notice(e.message)}
+}
+async function submissions(){
+ const d=await api('/api/admin/submissions');
+ const rows=d.items.map(s=>{
+  let evidence='';
+  if(s.photoPath){
+   evidence+=`<a href="${esc(s.photoPath)}" target="_blank"><img src="${esc(s.photoPath)}" style="width:110px;max-height:100px;object-fit:contain"></a><br>`;
+  }
+  if(s.proofType==='link' && /^https?:\/\//i.test(s.proof||'')){
+   evidence+=`<a href="${esc(s.proof)}" target="_blank" rel="noopener">Abrir link da prova</a>`;
+  }else if(s.proof && !s.photoPath){
+   evidence+=esc(s.proof);
+  }
+  if(s.description){
+   evidence+=`<p style="white-space:pre-wrap">${esc(s.description)}</p>`;
+  }
+  if(!evidence)evidence=esc(s.proof||'Sem comprovativo');
+  return `<tr>
+   <td>${esc(s.user?.name)}</td>
+   <td>${esc(s.user?.phone)}</td>
+   <td>${esc(s.task?.title)}</td>
+   <td>${evidence}</td>
+   <td>${money(s.reward)}</td>
+   <td>${esc(s.status)}</td>
+   <td>${s.status==='pending'?actions([btn('Aprovar',`proof(${s.id},'approved')`),btn('Rejeitar',`proof(${s.id},'rejected')`,'danger')]):'—'}</td>
+  </tr>`;
+ }).join('');
+ $('content').innerHTML=`<h1>Comprovativos / Provas</h1>${table(['Utilizador','Telefone','Tarefa','Fotografia / Link / Descrição','Prémio','Estado','Decisão'],rows)}`;
+}
+async function proof(id,status){
+ if(!confirm(status==='approved'?'Aprovar esta prova e creditar o prémio?':'Rejeitar esta prova?'))return;
+ try{await send('/api/admin/submissions/'+id,'PATCH',{status});notice('Prova analisada.');submissions()}catch(e){notice(e.message)}
+}
+async function withdrawals(){
+ const d=await api('/api/admin/withdrawals');
+ const rows=d.items.map(w=>`<tr><td>${esc(w.user?.name||w.userName)}</td><td>${esc(w.phone||w.user?.phone||w.userPhone)}</td><td>${money(w.amount)}</td><td>${money(w.fee)}</td><td>${money(w.net)}</td><td>${esc(w.method)}</td><td>${esc(w.status)}</td><td>${w.status==='pending'?actions([btn('Marcar pago',`withdraw(${w.id},'paid')`),btn('Rejeitar',`withdraw(${w.id},'rejected')`,'danger')]):'—'}</td></tr>`).join('');
+ $('content').innerHTML=`<h1>Levantamentos</h1>${table(['Utilizador','Telefone','Valor','Taxa','Líquido','Método','Estado','Acção'],rows)}`;
+}
+async function withdraw(id,status){
+ if(!confirm(status==='paid'?'Confirmar pagamento?':'Rejeitar e devolver o valor ao saldo?'))return;
+ try{await send('/api/admin/withdrawals/'+id,'PATCH',{status});notice('Pedido actualizado.');withdrawals()}catch(e){notice(e.message)}
+}
+async function messages(){
+ const d=await api('/api/admin/messages');
+
+ const rows=d.items.map(m=>`
+  <tr>
+   <td>${esc(m.userName)}</td>
+   <td>${esc(m.userPhone)}</td>
+   <td>${esc(m.lastMessage||'')}</td>
+   <td>${m.lastSender==='user'?'Utilizador':'Administrador'}</td>
+   <td>${Number(m.unread||0)>0?'<span class="badge red">'+m.unread+' nova(s)</span>':'<span class="badge">Lida</span>'}</td>
+   <td>${date(m.lastAt)}</td>
+   <td>${btn('Abrir conversa',`openConversation(${m.userId})`)}</td>
+  </tr>
+ `).join('');
+
+ $('content').innerHTML=`
+  <h1>💬 Centro de suporte</h1>
+  <p class="muted">Receba mensagens e converse directamente com os utilizadores.</p>
+  <div class="box">
+   <h2>Caixa de entrada</h2>
+   ${table(['Utilizador','Telefone','Última mensagem','Remetente','Novas','Data','Acção'],rows)}
+  </div>
+  <div id="conversation" class="box">
+   <p class="muted">Seleccione um utilizador para abrir a conversa.</p>
+  </div>`;
+}
+
+async function openConversation(id){
+ selectedConversationId=id;
+ const box=$('conversation');
+ if(box)box.innerHTML='<p>A carregar conversa...</p>';
+
+ try{
+  const d=await api('/api/admin/messages?userId='+encodeURIComponent(id));
+  const user=d.user;
+
+  const history=d.items.map(m=>`
+   <div style="display:flex;justify-content:${m.sender==='admin'?'flex-end':'flex-start'};margin:10px 0">
+    <div style="max-width:85%;padding:12px;border-radius:12px;background:${m.sender==='admin'?'#dcf5e7':'#f0f2f1'};color:#17342b">
+     <strong>${m.sender==='admin'?'Administrador':'Utilizador'}</strong>
+     <p style="white-space:pre-wrap;overflow-wrap:anywhere;margin:7px 0">${esc(m.text)}</p>
+     <small>${date(m.createdAt)}</small>
+    </div>
+   </div>
+  `).join('');
+
+  box.innerHTML=`
+   <h2>Conversa com ${esc(user.name)}</h2>
+   <p class="muted">${esc(user.phone)}</p>
+   <div style="max-height:420px;overflow-y:auto;padding:12px;background:#f8faf9;border-radius:12px">
+    ${history||'<p>Sem mensagens.</p>'}
+   </div>
+   <form id="adminReplyForm" style="margin-top:15px">
+    <label>Escrever resposta</label>
+    <textarea name="text" maxlength="2000" required placeholder="Escreva a sua resposta..." style="width:100%;min-height:90px"></textarea>
+    <button type="submit">📨 Enviar resposta</button>
+    <button type="button" class="secondary" onclick="messages()">Voltar à caixa de entrada</button>
+   </form>`;
+
+  const form=$('adminReplyForm');
+  form.onsubmit=async e=>{
+   e.preventDefault();
+   const input=form.elements.text;
+   const text=input.value.trim();
+   if(!text)return;
+
+   const button=form.querySelector('button[type=submit]');
+   button.disabled=true;
+   try{
+    await send('/api/messages','POST',{userId:id,text});
+    notice('Resposta enviada ao utilizador.');
+    await openConversation(id);
+   }catch(err){
+    notice(err.message);
+    button.disabled=false;
+   }
+  };
+ }catch(e){
+  box.innerHTML='<p>Erro: '+esc(e.message)+'</p>';
+ }
+}
+
+async function bots(){
+ const d=await api('/api/admin/bots');
+ const rows=d.items.map(b=>`<tr><td>${esc(b.name)}</td><td>${esc(b.title)}</td><td>${money(b.reward)}</td><td>${b.remaining}</td><td>${b.intervalMinutes} min</td><td>${date(b.nextRun)}</td><td>${b.active?'<span class="badge">Activo</span>':'<span class="badge red">Pausado/Terminado</span>'}</td><td>${actions([btn(b.active?'Pausar':'Retomar',`botToggle(${b.id},${!b.active})`,'secondary'),btn('Eliminar',`botDelete(${b.id})`,'danger')])}</td></tr>`).join('');
+ $('content').innerHTML=`<h1>Bots de publicação automática</h1>
+ <div class="box formbox"><h2>Criar bot</h2>
+ <form id="botForm">
+ ${field('Nome do bot','name')}
+ ${field('Título das tarefas','title')}
+ ${area('Descrição','description')}
+ <div class="grid">
+ ${field('Recompensa MT','reward','number',true,'min="0.01" step="0.01"')}
+ ${field('Vagas por tarefa','slots','number',false,'min="0" value="0"')}
+ ${field('Número de publicações','quantity','number',true,'min="1" max="10000" value="5"')}
+ ${field('Intervalo em minutos','intervalMinutes','number',true,'min="1" max="1440" value="10"')}
+ </div>
+ <label>Data e hora de início</label><input name="startAt" type="datetime-local">
+ <button>Criar bot</button></form></div>
+ <h2>Bots registados</h2>${table(['Nome','Tarefa','Prémio','Restantes','Intervalo','Próxima publicação','Estado','Acções'],rows)}
+ <p class="muted">Os bots publicam tarefas automaticamente enquanto o servidor estiver ligado.</p>`;
+ $('botForm').onsubmit=async e=>{
+  e.preventDefault();const data=formData(e.target);
+  if(data.startAt)data.startAt=new Date(data.startAt).toISOString();
+  try{await send('/api/admin/bots','POST',data);notice('Bot criado.');bots()}catch(x){notice(x.message)}
+ };
+}
+async function botToggle(id,active){
+ try{await send('/api/admin/bots/'+id,'PATCH',{active});bots()}catch(e){notice(e.message)}
+}
+async function botDelete(id){
+ if(!confirm('Eliminar este bot?'))return;
+ try{await api('/api/admin/bots/'+id,{method:'DELETE'});bots()}catch(e){notice(e.message)}
+}
+async function ads(){
+ const d=await api('/api/admin/ads');
+ const rows=d.items.map(a=>{
+ const views=Number(a.impressions||0);
+ const clicks=Number(a.clicks||0);
+ const ctr=views?((clicks/views)*100).toFixed(1):'0.0';
+ return `<tr>
+ <td>${a.imageUrl?`<img src="${esc(a.imageUrl)}" style="width:75px;height:55px;object-fit:cover;border-radius:7px"><br>`:''}<strong>${esc(a.title)}</strong><br><small>${esc(a.description||'')}</small></td>
+ <td><a href="${esc(a.targetUrl)}" target="_blank" rel="noopener">Abrir destino</a></td>
+ <td>${date(a.startAt)}</td><td>${date(a.endAt)}</td>
+ <td>${views}</td><td>${clicks}</td><td>${ctr}%</td>
+ <td>${a.active?'<span class="badge">Activo</span>':'<span class="badge red">Inactivo</span>'}</td>
+ <td>${actions([
+ btn('Editar',`adEdit(${a.id})`,'secondary'),
+ btn(a.active?'Desactivar':'Activar',`adToggle(${a.id},${!a.active})`,'secondary'),
+ btn('Eliminar',`adDelete(${a.id})`,'danger')
+ ])}</td></tr>`;
+}).join('');
+ $('content').innerHTML=`<h1>Publicidade e campanhas</h1>
+ <div class="box formbox"><h2>Criar campanha</h2><form id="adForm">
+ ${field('Título do anúncio','title')}
+ ${area('Descrição','description',false)}
+ <label>Fotografia do anúncio (JPG, PNG, WEBP ou GIF — máximo 5 MB)</label>
+ <input name="image" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+ ${field('Ou link da imagem (opcional)','imageUrl','url',false)}
+ ${field('Link de destino','targetUrl','url')}
+ <label>Início</label><input name="startAt" type="datetime-local" required>
+ <label>Fim</label><input name="endAt" type="datetime-local" required>
+ <button>Criar campanha</button></form></div>
+ <h2>Campanhas registadas</h2>${table(['Anúncio','Destino','Início','Fim','Visualizações','Cliques','CTR','Estado','Acções'],rows)}`;
+ $('adForm').onsubmit=async e=>{
+  e.preventDefault();
+  const data=new FormData(e.target);
+  data.set('startAt',new Date(data.get('startAt')).toISOString());
+  data.set('endAt',new Date(data.get('endAt')).toISOString());
+  if(data.get('image') && data.get('image').size===0)data.delete('image');
+  if(data.get('image') && data.get('image').size>5*1024*1024){
+   notice('A fotografia não pode ultrapassar 5 MB.');
+   return;
+  }
+  try{
+   const r=await fetch('/api/admin/ads',{
+    method:'POST',credentials:'same-origin',body:data
+   });
+   const result=await r.json();
+   if(!r.ok)throw Error(result.error||'Erro ao criar campanha.');
+   notice('Campanha criada com sucesso.');
+   ads();
+  }catch(x){notice(x.message)}
+ };
+}
+async function adEdit(id){
+ try{
+  const d=await api('/api/admin/ads');
+  const a=d.items.find(x=>String(x.id)===String(id));
+  if(!a)return notice('Campanha não encontrada.');
+
+  const title=prompt('Título do anúncio:',a.title);
+  if(title===null)return;
+  const description=prompt('Descrição:',a.description||'');
+  if(description===null)return;
+  const imageUrl=prompt('Link da imagem (opcional):',a.imageUrl||'');
+  if(imageUrl===null)return;
+  const targetUrl=prompt('Link de destino:',a.targetUrl);
+  if(targetUrl===null)return;
+
+  const startInput=prompt('Início (AAAA-MM-DDTHH:MM):',a.startAt.slice(0,16));
+  if(startInput===null)return;
+  const endInput=prompt('Fim (AAAA-MM-DDTHH:MM):',a.endAt.slice(0,16));
+  if(endInput===null)return;
+
+  await send('/api/admin/ads/'+id,'PATCH',{
+   title,description,imageUrl,targetUrl,
+   startAt:new Date(startInput).toISOString(),
+   endAt:new Date(endInput).toISOString()
+  });
+  notice('Campanha actualizada.');
+  ads();
+ }catch(e){notice(e.message)}
+}
+async function adToggle(id,active){
+ try{await send('/api/admin/ads/'+id,'PATCH',{active});ads()}catch(e){notice(e.message)}
+}
+async function adDelete(id){
+ if(!confirm('Eliminar campanha publicitária?'))return;
+ try{await api('/api/admin/ads/'+id,{method:'DELETE'});ads()}catch(e){notice(e.message)}
+}
+async function requests(){
+ const d=await api('/api/admin/ad-requests');
+ const rows=d.items.map(r=>`<tr>
+ <td>${esc(r.company)}<br><small>${esc(r.phone)}</small></td>
+ <td>${r.imageUrl?`<a href="${esc(r.imageUrl)}" target="_blank"><img src="${esc(r.imageUrl)}" alt="Imagem do anúncio" style="width:90px;height:65px;object-fit:cover;border-radius:8px"></a>`:'Sem imagem'}</td>
+ <td>${esc(r.title)}</td><td>${esc(r.description||'')}</td>
+ <td><a href="${esc(r.targetUrl)}" target="_blank" rel="noopener">Ver destino</a></td>
+ <td>${esc(r.status)}</td>
+ <td>${r.status==='pending'?actions([btn('Aprovar',`adRequest(${r.id},'approved')`),btn('Rejeitar',`adRequest(${r.id},'rejected')`,'danger')]):'—'}</td>
+ </tr>`).join('');
+ $('content').innerHTML=`<h1>Pedidos de publicidade</h1>${table(['Empresa / Contacto','Imagem','Anúncio','Descrição','Destino','Estado','Decisão'],rows)}`;
+}
+async function adRequest(id,status){
+ let durationDays=30;
+ if(status==='approved'){
+  const answer=prompt('Por quantos dias deseja publicar este anúncio? (1 a 365)','30');
+  if(answer===null)return;
+  durationDays=Number(answer);
+  if(!Number.isInteger(durationDays)||durationDays<1||durationDays>365){
+   notice('Introduza uma duração entre 1 e 365 dias.');
+   return;
+  }
+  if(!confirm('Aprovar e publicar a campanha durante '+durationDays+' dias?'))return;
+ }else if(!confirm('Rejeitar este pedido de publicidade?'))return;
+
+ try{
+  await send('/api/admin/ad-requests/'+id,'PATCH',{status,durationDays});
+  notice('Pedido analisado.');
+  requests();
+ }catch(e){notice(e.message)}
+}
+checkSession();
+</script>
+</body>
+</html>

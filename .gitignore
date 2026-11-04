@@ -1,0 +1,20 @@
+node_modules/
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite
+*.sqlite3
+*.log
+backups/
+backup*/
+public/uploads/
+.DS_Store
+
+# Backups e projectos antigos
+*.backup*
+backup*/
+TASKMOZ-RECUPERADO/
+*.db*
+*.sqlite*
+*.log
