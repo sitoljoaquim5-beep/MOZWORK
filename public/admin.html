@@ -273,14 +273,47 @@ async function submissions(){
    <td>${evidence}</td>
    <td>${money(s.reward)}</td>
    <td>${esc(s.status)}</td>
+   <td>${s.rejectionReason?esc(s.rejectionReason):'—'}</td>
    <td>${s.status==='pending'?actions([btn('Aprovar',`proof(${s.id},'approved')`),btn('Rejeitar',`proof(${s.id},'rejected')`,'danger')]):'—'}</td>
   </tr>`;
  }).join('');
- $('content').innerHTML=`<h1>Comprovativos / Provas</h1>${table(['Utilizador','Telefone','Tarefa','Fotografia / Link / Descrição','Prémio','Estado','Decisão'],rows)}`;
+ $('content').innerHTML=`<h1>Comprovativos / Provas</h1>${table(['Utilizador','Telefone','Tarefa','Fotografia / Link / Descrição','Prémio','Estado','Motivo da rejeição','Decisão'],rows)}`;
 }
 async function proof(id,status){
- if(!confirm(status==='approved'?'Aprovar esta prova e creditar o prémio?':'Rejeitar esta prova?'))return;
- try{await send('/api/admin/submissions/'+id,'PATCH',{status});notice('Prova analisada.');submissions()}catch(e){notice(e.message)}
+ let rejectionReason='';
+
+ if(status==='rejected'){
+  rejectionReason=prompt(
+   'ESCREVA O MOTIVO DA REJEIÇÃO. O trabalhador verá esta explicação:'
+  );
+
+  if(rejectionReason===null)return;
+
+  rejectionReason=rejectionReason.trim();
+
+  if(rejectionReason.length<5){
+   notice('O motivo da rejeição deve ter pelo menos 5 caracteres.');
+   return;
+  }
+
+  if(rejectionReason.length>1000){
+   notice('O motivo não pode ultrapassar 1000 caracteres.');
+   return;
+  }
+ }
+
+ if(!confirm(status==='approved'?'Aprovar esta prova e creditar o prémio?':'Confirmar rejeição e enviar o motivo ao trabalhador?'))return;
+
+ try{
+  await send('/api/admin/submissions/'+id,'PATCH',{
+   status,
+   rejectionReason
+  });
+  notice('Prova analisada.');
+  submissions();
+ }catch(e){
+  notice(e.message);
+ }
 }
 async function withdrawals(){
  const d=await api('/api/admin/withdrawals');

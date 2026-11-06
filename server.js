@@ -333,6 +333,9 @@ if(!existingColumns.includes('photoPath'))
 if(!existingColumns.includes('description'))
  db.exec("ALTER TABLE submissions ADD COLUMN description TEXT");
 
+if(!existingColumns.includes('rejectionReason'))
+ db.exec("ALTER TABLE submissions ADD COLUMN rejectionReason TEXT");
+
 const mt = n => Math.round((Number(n)+Number.EPSILON)*100)/100;
 
 const safe = u => ({
@@ -719,6 +722,7 @@ app.post('/api/tasks/:id/submit',auth,upload.single('photo'),wrap(async(req,res)
 app.get('/api/my-submissions',auth,wrap(async(req,res)=>{
  const items=db.prepare(`
   SELECT s.*,t.title AS taskTitle,
+   t.description AS taskDescription,
    CASE WHEN s.id=(
     SELECT MAX(s2.id)
     FROM submissions s2
@@ -730,7 +734,11 @@ app.get('/api/my-submissions',auth,wrap(async(req,res)=>{
   ORDER BY s.id DESC
  `).all(req.user.id).map(s=>({
   ...s,
-  task:s.task?{id:s.task,title:s.taskTitle}:null
+  task:s.task?{
+   id:s.task,
+   title:s.taskTitle,
+   description:s.taskDescription
+  }:null
  }));
 
  const accepted=db.prepare(`
@@ -1090,10 +1098,21 @@ app.get('/api/admin/submissions',auth,admin,wrap(async(req,res)=>{
 
 app.patch('/api/admin/submissions/:id',auth,admin,wrap(async(req,res)=>{
  const status=req.body.status;
+ const rejectionReason=String(req.body.rejectionReason||'').trim();
 
  if(!['approved','rejected'].includes(status))
   return res.status(400).json({
    error:'Decisão inválida.'
+  });
+
+ if(status==='rejected' && rejectionReason.length<5)
+  return res.status(400).json({
+   error:'Escreva o motivo da rejeição (mínimo 5 caracteres).'
+  });
+
+ if(rejectionReason.length>1000)
+  return res.status(400).json({
+   error:'O motivo não pode ultrapassar 1000 caracteres.'
   });
 
  let reviewedSubmission=null;
@@ -1110,8 +1129,14 @@ app.patch('/api/admin/submissions/:id',auth,admin,wrap(async(req,res)=>{
   reviewedSubmission=sub;
 
   db.prepare(`
-   UPDATE submissions SET status=? WHERE id=?
-  `).run(status,sub.id);
+   UPDATE submissions
+   SET status=?, rejectionReason=?
+   WHERE id=?
+  `).run(
+   status,
+   status==='rejected'?rejectionReason:null,
+   sub.id
+  );
 
   if(status==='approved'){
    db.prepare(`
@@ -1134,7 +1159,8 @@ app.patch('/api/admin/submissions/:id',auth,admin,wrap(async(req,res)=>{
    notifyUser(
     reviewedSubmission.user,
     'Comprovativo rejeitado',
-    'O teu comprovativo foi rejeitado. Consulta a tarefa ou contacta o suporte para mais informações.',
+    'Motivo da rejeição: '+rejectionReason+
+    '\\nAbre Minhas tarefas para consultar novamente as instruções e enviar uma nova prova.',
     'proof'
    );
   }

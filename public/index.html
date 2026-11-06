@@ -460,12 +460,20 @@ if(type==='mine'){
   <h3>${esc(x.task?.title||x.taskTitle||'Tarefa')}</h3>
   <div class="card" style="background:#f4f7f6;padding:12px;margin:12px 0">
    <strong>📋 Instruções da tarefa:</strong>
-   <p style="white-space:pre-wrap">${esc(x.description||x.task?.description||'Instruções não disponíveis.')}</p>
+   <p style="white-space:pre-wrap">${esc(x.task?.description||x.taskDescription||'Instruções não disponíveis.')}</p>
   </div>
   <p>Prémio: ${Number(x.reward||0).toFixed(2)} MT</p>
   <p>Estado: <b>${esc(x.status)}</b></p>
+  ${x.status==='rejected'?`
+   <div class="card" style="background:#fff3f0;border-left:4px solid #b42318;padding:12px;margin:12px 0">
+    <strong style="color:#b42318">⚠️ Motivo da rejeição</strong>
+    <p style="white-space:pre-wrap">${esc(x.rejectionReason||'Não foi indicado um motivo.')}</p>
+    <strong>O que fazer agora?</strong>
+    <p>Consulta novamente as instruções originais acima, corrige a tua execução e envia uma nova prova.</p>
+   </div>
+  `:''}
   ${x.status==='accepted'||(x.status==='rejected'&&Number(x.isLatest)===1)?`
-   ${x.status==='rejected'?'<p style="color:#b42318"><strong>⚠️ A prova foi rejeitada. Corrige e envia novamente.</strong></p>':''}
+   ${x.status==='rejected'?'<p style="color:#b42318"><strong>Corrige a prova e envia novamente utilizando o formulário abaixo.</strong></p>':''}
    <form onsubmit="submitTask(event,'${x.task?.id||x.task}')">
     <label>Tipo de comprovativo</label>
     <select name="proofType" onchange="proofFields(this,${x.task?.id||x.task})" required>
