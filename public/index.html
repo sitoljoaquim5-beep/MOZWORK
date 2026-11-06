@@ -309,17 +309,46 @@ async function loadNotifications(){
    return;
   }
 
-  list.innerHTML=d.items.map(n=>`
-   <div class="notification-item ${Number(n.read)===0?'unread':''}"
-    onclick="readNotification(${Number(n.id)})">
-    <strong>${esc(n.title)}</strong>
-    <p>${esc(n.text)}</p>
-    <small>${esc(n.createdAt||'')}</small>
-    ${Number(n.read)===0?'<small> · Nova</small>':''}
-   </div>
-  `).join('');
+  list.innerHTML=d.items.map(n=>{
+   const id=Number(n.id);
+   const type=String(n.type||'info').replace(/[^a-z_]/g,'');
+   return `
+    <div class="notification-item ${Number(n.read)===0?'unread':''}">
+     <strong>${esc(n.title)}</strong>
+     <p>${esc(n.text)}</p>
+     <small>${esc(n.createdAt||'')}</small>
+     <p><button type="button" class="green"
+      onclick="openNotification(${id},'${type}')">VER AGORA</button></p>
+    </div>`;
+  }).join('');
  }catch(e){
   console.log('Notificações indisponíveis:',e.message);
+ }
+}
+
+async function openNotification(id,type){
+ try{
+  const r=await fetch('/api/notifications/'+id+'/read',{
+   method:'PATCH',credentials:'same-origin'
+  });
+  if(!r.ok)throw Error('Não foi possível abrir a notificação.');
+
+  document.getElementById('notificationDropdown').classList.remove('open');
+  await loadNotifications();
+
+  if(type==='message'){
+   panel('support');
+  }else if(type==='proof'){
+   panel('mine');
+  }else if(type==='withdrawal'){
+   panel('history');
+  }else if(type==='task'){
+   panel('tasks');
+  }else{
+   panel('notifications');
+  }
+ }catch(e){
+  alert(e.message);
  }
 }
 
@@ -435,7 +464,8 @@ if(type==='mine'){
   </div>
   <p>Prémio: ${Number(x.reward||0).toFixed(2)} MT</p>
   <p>Estado: <b>${esc(x.status)}</b></p>
-  ${x.status==='accepted'?`
+  ${x.status==='accepted'||(x.status==='rejected'&&Number(x.isLatest)===1)?`
+   ${x.status==='rejected'?'<p style="color:#b42318"><strong>⚠️ A prova foi rejeitada. Corrige e envia novamente.</strong></p>':''}
    <form onsubmit="submitTask(event,'${x.task?.id||x.task}')">
     <label>Tipo de comprovativo</label>
     <select name="proofType" onchange="proofFields(this,${x.task?.id||x.task})" required>
@@ -458,6 +488,17 @@ p.innerHTML=`<div class="card"><h2>Levantamento</h2><p>Mínimo: 20 MT · Taxa: 1
 if(type==='history'){
 let d=await request('/withdrawals');
 p.innerHTML='<h2>Histórico</h2>'+d.items.map(x=>`<div class="card">${x.amount} MT — ${x.status}</div>`).join('');
+}
+if(type==='notifications'){
+ let d=await request('/notifications');
+ p.innerHTML='<h2>🔔 Central de notificações</h2>'+
+ (d.items.length?d.items.map(n=>`
+  <div class="card">
+   <strong>${esc(n.title)}</strong>
+   <p style="white-space:pre-wrap">${esc(n.text)}</p>
+   <small>${esc(n.createdAt||'')}</small>
+  </div>
+ `).join(''):'<p>Não tens notificações.</p>');
 }
 if(type==='support'){
  let d=await request('/messages');

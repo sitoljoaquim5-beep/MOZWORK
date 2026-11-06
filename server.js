@@ -689,13 +689,19 @@ app.post('/api/tasks/:id/submit',auth,upload.single('photo'),wrap(async(req,res)
   return res.status(400).json({error:'Escolha o tipo de comprovativo.'});
  }
 
- const exists=db.prepare(`
-  SELECT id FROM submissions WHERE user=? AND task=?
+ const previous=db.prepare(`
+  SELECT id,status FROM submissions
+  WHERE user=? AND task=?
+  ORDER BY id DESC LIMIT 1
  `).get(req.user.id,task.id);
 
- if(exists){
+ if(previous && previous.status!=='rejected'){
   if(req.file) fs.unlinkSync(req.file.path);
-  return res.status(409).json({error:'Já enviou uma prova.'});
+  return res.status(409).json({
+   error:previous.status==='approved'
+    ?'Esta tarefa já foi aprovada.'
+    :'Já existe uma prova pendente de análise.'
+  });
  }
 
  db.prepare(`
@@ -712,11 +718,16 @@ app.post('/api/tasks/:id/submit',auth,upload.single('photo'),wrap(async(req,res)
 
 app.get('/api/my-submissions',auth,wrap(async(req,res)=>{
  const items=db.prepare(`
-  SELECT s.*,t.title AS taskTitle
+  SELECT s.*,t.title AS taskTitle,
+   CASE WHEN s.id=(
+    SELECT MAX(s2.id)
+    FROM submissions s2
+    WHERE s2.user=s.user AND s2.task=s.task
+   ) THEN 1 ELSE 0 END AS isLatest
   FROM submissions s
   LEFT JOIN tasks t ON t.id=s.task
   WHERE s.user=?
-  ORDER BY s.createdAt DESC
+  ORDER BY s.id DESC
  `).all(req.user.id).map(s=>({
   ...s,
   task:s.task?{id:s.task,title:s.taskTitle}:null
@@ -864,7 +875,7 @@ app.post('/api/messages',auth,wrap(async(req,res)=>{
   notifyUser(
    target,
    'Nova mensagem do MOZWORK',
-   'Recebeste uma nova mensagem da administração.',
+   message,
    'message'
   );
  }
