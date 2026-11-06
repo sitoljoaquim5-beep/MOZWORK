@@ -291,6 +291,7 @@ async function withdraw(id,status){
  if(!confirm(status==='paid'?'Confirmar pagamento?':'Rejeitar e devolver o valor ao saldo?'))return;
  try{await send('/api/admin/withdrawals/'+id,'PATCH',{status});notice('Pedido actualizado.');withdrawals()}catch(e){notice(e.message)}
 }
+
 async function messages(){
  const d=await api('/api/admin/messages');
 
@@ -298,24 +299,88 @@ async function messages(){
   <tr>
    <td>${esc(m.userName)}</td>
    <td>${esc(m.userPhone)}</td>
-   <td>${esc(m.lastMessage||'')}</td>
-   <td>${m.lastSender==='user'?'Utilizador':'Administrador'}</td>
+   <td>${esc(m.lastMessage||'Ainda sem mensagens')}</td>
+   <td>${m.lastSender==='user'?'Utilizador':m.lastSender==='admin'?'Administrador':'—'}</td>
    <td>${Number(m.unread||0)>0?'<span class="badge red">'+m.unread+' nova(s)</span>':'<span class="badge">Lida</span>'}</td>
    <td>${date(m.lastAt)}</td>
    <td>${btn('Abrir conversa',`openConversation(${m.userId})`)}</td>
   </tr>
  `).join('');
 
+ const options=d.items.map(m=>
+  `<option value="${Number(m.userId)}">${esc(m.userName)} — ${esc(m.userPhone)}</option>`
+ ).join('');
+
  $('content').innerHTML=`
-  <h1>💬 Centro de suporte</h1>
-  <p class="muted">Receba mensagens e converse directamente com os utilizadores.</p>
+  <h1>💬 Centro de comunicação</h1>
+  <p class="muted">Converse com qualquer trabalhador ou envie anúncios.</p>
+
   <div class="box">
-   <h2>Caixa de entrada</h2>
+   <h2>📢 Enviar anúncio</h2>
+   <form id="announcementForm">
+    <label>Destinatário</label>
+    <select name="target" required>
+     <option value="all">📢 Todos os trabalhadores</option>
+     ${options}
+    </select>
+
+    <label>Título do anúncio</label>
+    <input name="title" maxlength="100" required
+     placeholder="Ex.: Nova informação do MOZWORK">
+
+    <label>Mensagem</label>
+    <textarea name="text" maxlength="2000" required
+     placeholder="Escreva o anúncio..." style="width:100%;min-height:100px"></textarea>
+
+    <button type="submit">📨 Enviar anúncio</button>
+   </form>
+  </div>
+
+  <div class="box">
+   <h2>👥 Trabalhadores e conversas</h2>
+   <p class="muted">Agora aparecem também os trabalhadores que nunca enviaram mensagens.</p>
    ${table(['Utilizador','Telefone','Última mensagem','Remetente','Novas','Data','Acção'],rows)}
   </div>
+
   <div id="conversation" class="box">
-   <p class="muted">Seleccione um utilizador para abrir a conversa.</p>
-  </div>`;
+   <p class="muted">Seleccione um trabalhador para abrir ou iniciar uma conversa.</p>
+  </div>
+ `;
+
+ const form=$('announcementForm');
+
+ form.onsubmit=async e=>{
+  e.preventDefault();
+
+  const data=formData(form);
+  const target=data.target;
+
+  const all=target==='all';
+
+  if(!confirm(all?
+   'Enviar este anúncio para todos os trabalhadores?':
+   'Enviar este anúncio para o trabalhador seleccionado?'
+  ))return;
+
+  const button=form.querySelector('button[type=submit]');
+  button.disabled=true;
+
+  try{
+   const result=await send('/api/admin/notifications','POST',{
+    title:data.title,
+    text:data.text,
+    all,
+    ...(all?{}:{userId:Number(target)})
+   });
+
+   notice('Anúncio enviado! Destinatários: '+result.total);
+   form.reset();
+  }catch(err){
+   notice(err.message);
+  }finally{
+   button.disabled=false;
+  }
+ };
 }
 
 async function openConversation(id){

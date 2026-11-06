@@ -17,7 +17,8 @@ const SQL = await initSqlJs({
  locateFile: file => require.resolve('sql.js/dist/' + file)
 });
 
-const dataDir = process.env.DATA_DIR || (process.env.PORT ? '/data' : __dirname);
+const isTermux = Boolean(process.env.PREFIX && process.env.PREFIX.includes('/com.termux/'));
+const dataDir = process.env.DATA_DIR || (isTermux ? __dirname : (process.env.PORT ? '/data' : __dirname));
 fs.mkdirSync(dataDir, { recursive: true });
 
 const dbFile = path.join(dataDir, 'mozwork.db');
@@ -303,6 +304,23 @@ CREATE TABLE IF NOT EXISTS task_acceptances (
 );
 `);
 
+
+/* NOTIFICAÇÕES MOZWORK */
+db.exec(`
+CREATE TABLE IF NOT EXISTS notifications (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ user INTEGER NOT NULL,
+ title TEXT NOT NULL,
+ text TEXT NOT NULL,
+ type TEXT DEFAULT 'info',
+ read INTEGER DEFAULT 0,
+ createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(user) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_user
+ ON notifications(user);
+`);
+
 const submissionColumns=db.prepare('PRAGMA table_info(submissions)').all();
 const existingColumns=submissionColumns.map(c=>c.name);
 
@@ -329,6 +347,25 @@ const safe = u => ({
 const wrap = fn => (req,res,next) =>
  Promise.resolve(fn(req,res,next)).catch(next);
 
+/* FUNÇÕES DE NOTIFICAÇÃO */
+function notifyUser(userId,title,text,type='info'){
+ db.prepare(`
+  INSERT INTO notifications(user,title,text,type)
+  VALUES(?,?,?,?)
+ `).run(Number(userId),String(title),String(text),String(type));
+}
+
+function notifyAll(title,text,type='info'){
+ const users=db.prepare(`
+  SELECT id FROM users WHERE role='user' AND blocked=0
+ `).all();
+
+ for(const u of users){
+  notifyUser(u.id,title,text,type);
+ }
+
+ return users.length;
+}
 /* SESSÕES */
 
 app.use(session({
@@ -461,6 +498,73 @@ app.post('/api/logout',(req,res)=>{
 app.get('/api/me',auth,(req,res)=>{
  res.json({user:safe(req.user)});
 });
+
+
+/* NOTIFICAÇÕES */
+
+app.get('/api/notifications',auth,wrap(async(req,res)=>{
+ if(req.user.role!=='user')
+  return res.status(403).json({error:'Acesso reservado aos trabalhadores.'});
+
+ const items=db.prepare(`
+  SELECT id,title,text,type,read,createdAt
+  FROM notifications WHERE user=?
+  ORDER BY id DESC LIMIT 50
+ `).all(req.user.id);
+
+ const unread=db.prepare(`
+  SELECT COUNT(*) AS total
+  FROM notifications WHERE user=? AND read=0
+ `).get(req.user.id);
+
+ res.json({items,unreadCount:unread.total});
+}));
+
+app.patch('/api/notifications/:id/read',auth,wrap(async(req,res)=>{
+ if(req.user.role!=='user')
+  return res.status(403).json({error:'Acesso reservado aos trabalhadores.'});
+
+ db.prepare(`
+  UPDATE notifications SET read=1 WHERE id=? AND user=?
+ `).run(req.params.id,req.user.id);
+
+ res.json({ok:true});
+}));
+
+app.patch('/api/notifications/read-all',auth,wrap(async(req,res)=>{
+ if(req.user.role!=='user')
+  return res.status(403).json({error:'Acesso reservado aos trabalhadores.'});
+
+ db.prepare(`
+  UPDATE notifications SET read=1 WHERE user=?
+ `).run(req.user.id);
+
+ res.json({ok:true});
+}));
+
+app.post('/api/admin/notifications',auth,admin,wrap(async(req,res)=>{
+ const title=String(req.body.title||'').trim();
+ const text=String(req.body.text||'').trim();
+ const userId=Number(req.body.userId||0);
+
+ if(title.length<3 || title.length>100 || !text || text.length>2000)
+  return res.status(400).json({error:'Título ou mensagem inválidos.'});
+
+ if(req.body.all===true){
+  const total=notifyAll(title,text,'announcement');
+  return res.json({ok:true,total});
+ }
+
+ const user=db.prepare(`
+  SELECT id FROM users WHERE id=? AND role='user'
+ `).get(userId);
+
+ if(!user)
+  return res.status(404).json({error:'Trabalhador não encontrado.'});
+
+ notifyUser(user.id,title,text,'announcement');
+ res.json({ok:true,total:1});
+}));
 
 /* TAREFAS */
 
@@ -723,6 +827,7 @@ app.get('/api/withdrawals',auth,wrap(async(req,res)=>{
 
 /* SUPORTE */
 
+
 app.post('/api/messages',auth,wrap(async(req,res)=>{
  const message=String(req.body.text||'').trim();
 
@@ -754,6 +859,15 @@ app.post('/api/messages',auth,wrap(async(req,res)=>{
   req.user.role==='admin'?'admin':'user',
   message
  );
+
+ if(req.user.role==='admin'&&target!==req.user.id){
+  notifyUser(
+   target,
+   'Nova mensagem do MOZWORK',
+   'Recebeste uma nova mensagem da administração.',
+   'message'
+  );
+ }
 
  res.json({ok:true});
 }));
@@ -835,6 +949,7 @@ app.patch('/api/admin/users/:id',auth,admin,wrap(async(req,res)=>{
  res.json({user:safe(u)});
 }));
 
+
 app.post('/api/admin/tasks',auth,admin,wrap(async(req,res)=>{
  const title=String(req.body.title||'').trim();
  const description=String(req.body.description||'').trim();
@@ -869,6 +984,12 @@ app.post('/api/admin/tasks',auth,admin,wrap(async(req,res)=>{
  const task=db.prepare(
   'SELECT * FROM tasks WHERE id=?'
  ).get(result.lastInsertRowid);
+
+ notifyAll(
+  'Nova tarefa disponível',
+  'Foi publicada uma nova tarefa: '+title,
+  'task'
+ );
 
  res.json({task});
 }));
@@ -955,6 +1076,7 @@ app.get('/api/admin/submissions',auth,admin,wrap(async(req,res)=>{
  res.json({items});
 }));
 
+
 app.patch('/api/admin/submissions/:id',auth,admin,wrap(async(req,res)=>{
  const status=req.body.status;
 
@@ -962,6 +1084,8 @@ app.patch('/api/admin/submissions/:id',auth,admin,wrap(async(req,res)=>{
   return res.status(400).json({
    error:'Decisão inválida.'
   });
+
+ let reviewedSubmission=null;
 
  const transaction=db.transaction(()=>{
   const sub=db.prepare(`
@@ -971,6 +1095,8 @@ app.patch('/api/admin/submissions/:id',auth,admin,wrap(async(req,res)=>{
 
   if(!sub)
    throw Error('Prova já analisada ou inexistente.');
+
+  reviewedSubmission=sub;
 
   db.prepare(`
    UPDATE submissions SET status=? WHERE id=?
@@ -985,8 +1111,27 @@ app.patch('/api/admin/submissions/:id',auth,admin,wrap(async(req,res)=>{
 
  transaction();
 
+ if(reviewedSubmission){
+  if(status==='approved'){
+   notifyUser(
+    reviewedSubmission.user,
+    'Comprovativo aprovado',
+    'O teu comprovativo foi aprovado! '+Number(reviewedSubmission.reward).toFixed(2)+' MT foram adicionados ao teu saldo.',
+    'proof'
+   );
+  }else{
+   notifyUser(
+    reviewedSubmission.user,
+    'Comprovativo rejeitado',
+    'O teu comprovativo foi rejeitado. Consulta a tarefa ou contacta o suporte para mais informações.',
+    'proof'
+   );
+  }
+ }
+
  res.json({ok:true});
 }));
+
 
 app.patch('/api/admin/withdrawals/:id',auth,admin,wrap(async(req,res)=>{
  const status=req.body.status;
@@ -996,6 +1141,8 @@ app.patch('/api/admin/withdrawals/:id',auth,admin,wrap(async(req,res)=>{
    error:'Estado inválido.'
   });
 
+ let reviewedWithdrawal=null;
+
  const transaction=db.transaction(()=>{
   const w=db.prepare(`
    SELECT * FROM withdrawals
@@ -1004,6 +1151,8 @@ app.patch('/api/admin/withdrawals/:id',auth,admin,wrap(async(req,res)=>{
 
   if(!w)
    throw Error('Pedido já analisado.');
+
+  reviewedWithdrawal=w;
 
   db.prepare(`
    UPDATE withdrawals SET status=? WHERE id=?
@@ -1018,8 +1167,27 @@ app.patch('/api/admin/withdrawals/:id',auth,admin,wrap(async(req,res)=>{
 
  transaction();
 
+ if(reviewedWithdrawal){
+  if(status==='paid'){
+   notifyUser(
+    reviewedWithdrawal.user,
+    'Levantamento aprovado',
+    'O teu levantamento foi marcado como pago pela administração.',
+    'withdrawal'
+   );
+  }else{
+   notifyUser(
+    reviewedWithdrawal.user,
+    'Levantamento rejeitado',
+    'O teu levantamento foi rejeitado. O valor foi devolvido ao teu saldo.',
+    'withdrawal'
+   );
+  }
+ }
+
  res.json({ok:true});
 }));
+
 
 app.get('/api/admin/messages',auth,admin,wrap(async(req,res)=>{
  const userId=Number(req.query.userId||0);
@@ -1031,7 +1199,9 @@ app.get('/api/admin/messages',auth,admin,wrap(async(req,res)=>{
   `).get(userId);
 
   if(!user)
-   return res.status(404).json({error:'Utilizador não encontrado.'});
+   return res.status(404).json({
+    error:'Utilizador não encontrado.'
+   });
 
   const items=db.prepare(`
    SELECT * FROM messages
@@ -1058,11 +1228,15 @@ app.get('/api/admin/messages',auth,admin,wrap(async(req,res)=>{
     WHERE user=u.id ORDER BY id DESC LIMIT 1) AS lastSender,
    (SELECT createdAt FROM messages
     WHERE user=u.id ORDER BY id DESC LIMIT 1) AS lastAt,
-   SUM(CASE WHEN m.sender='user' AND m.read=0 THEN 1 ELSE 0 END) AS unread
-  FROM messages m
-  JOIN users u ON u.id=m.user
+   COALESCE(SUM(
+    CASE WHEN m.sender='user' AND m.read=0
+    THEN 1 ELSE 0 END
+   ),0) AS unread
+  FROM users u
+  LEFT JOIN messages m ON m.user=u.id
+  WHERE u.role='user'
   GROUP BY u.id,u.name,u.phone
-  ORDER BY MAX(m.id) DESC
+  ORDER BY COALESCE(MAX(m.id),0) DESC,u.id DESC
  `).all();
 
  res.json({items});

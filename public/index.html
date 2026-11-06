@@ -53,12 +53,68 @@ footer{text-align:center;padding:30px;color:#087c36}
  #mainNav button{flex:1;padding:11px 7px;font-size:12px;min-width:90px}
  .worker-nav button{font-size:13px;padding:13px 7px;min-width:125px}
 }
+
+/* SINO DE NOTIFICACOES MOZWORK */
+header{position:sticky;top:0;z-index:1000}
+.notification-wrap{position:relative;display:none}
+.notification-bell{
+ background:#ffd500;color:#17351f;border-radius:50%;
+ width:46px;height:46px;padding:0;font-size:22px;
+ position:relative;display:flex;align-items:center;
+ justify-content:center
+}
+.notification-badge{
+ position:absolute;top:-5px;right:-5px;
+ background:#e32636;color:white;border-radius:20px;
+ min-width:20px;height:20px;padding:2px 5px;
+ font-size:11px;display:none;align-items:center;
+ justify-content:center;border:2px solid white
+}
+.notification-dropdown{
+ display:none;position:absolute;right:0;top:55px;
+ width:min(350px,90vw);max-height:430px;overflow:auto;
+ background:white;color:#17251d;border-radius:15px;
+ box-shadow:0 8px 30px #0003;padding:12px
+}
+.notification-dropdown.open{display:block}
+.notification-item{
+ padding:12px;border-bottom:1px solid #e2ece7;
+ cursor:pointer;text-align:left
+}
+.notification-item.unread{background:#eff8f1}
+.notification-item p{margin:6px 0;font-size:14px;line-height:1.5}
+.notification-item small{color:#71847b}
+.notification-top{
+ display:flex;justify-content:space-between;
+ align-items:center;gap:8px;padding:5px
+}
+.notification-top button{font-size:11px;padding:8px}
+@media(max-width:650px){
+ .notification-wrap{margin-left:auto}
+ .notification-dropdown{right:0}
+}
+
 </style>
 </head>
 <body>
 
 <header>
 <div class="logo">🇲🇿 MOZWORK</div>
+<div class="notification-wrap" id="notificationWrap">
+ <button class="notification-bell" id="notificationBell"
+  onclick="toggleNotifications()" aria-label="Notificações">
+  🔔<span class="notification-badge" id="notificationBadge">0</span>
+ </button>
+ <div class="notification-dropdown" id="notificationDropdown">
+  <div class="notification-top">
+   <strong>🔔 Notificações</strong>
+   <button class="yellow" onclick="markAllNotifications()">Marcar todas como lidas</button>
+  </div>
+  <div id="notificationList">
+   <p style="padding:12px">A carregar notificações...</p>
+  </div>
+ </div>
+</div>
 <nav id="mainNav">
 <button id="navLogin" onclick="page('login')">Entrar</button>
 <button id="navRegister" class="yellow" onclick="page('register')">Registo</button>
@@ -217,6 +273,82 @@ const d=await r.json();
 if(!r.ok)throw Error(d.error||'Erro');
 return d;
 }
+
+/* NOTIFICACOES DO TRABALHADOR */
+let notificationTimer=null;
+
+function showNotificationBell(role){
+ const box=document.getElementById('notificationWrap');
+ const dropdown=document.getElementById('notificationDropdown');
+
+ if(role==='user'){
+  box.style.display='block';
+  loadNotifications();
+  if(notificationTimer)clearInterval(notificationTimer);
+  notificationTimer=setInterval(loadNotifications,20000);
+ }else{
+  box.style.display='none';
+  dropdown.classList.remove('open');
+  if(notificationTimer)clearInterval(notificationTimer);
+  notificationTimer=null;
+ }
+}
+
+async function loadNotifications(){
+ try{
+  const d=await request('/notifications');
+  const badge=document.getElementById('notificationBadge');
+  const list=document.getElementById('notificationList');
+
+  const count=Number(d.unreadCount||0);
+  badge.textContent=count>99?'99+':count;
+  badge.style.display=count>0?'flex':'none';
+
+  if(!d.items || !d.items.length){
+   list.innerHTML='<p style="padding:15px;color:#71847b">Ainda não tens notificações.</p>';
+   return;
+  }
+
+  list.innerHTML=d.items.map(n=>`
+   <div class="notification-item ${Number(n.read)===0?'unread':''}"
+    onclick="readNotification(${Number(n.id)})">
+    <strong>${esc(n.title)}</strong>
+    <p>${esc(n.text)}</p>
+    <small>${esc(n.createdAt||'')}</small>
+    ${Number(n.read)===0?'<small> · Nova</small>':''}
+   </div>
+  `).join('');
+ }catch(e){
+  console.log('Notificações indisponíveis:',e.message);
+ }
+}
+
+function toggleNotifications(){
+ const dropdown=document.getElementById('notificationDropdown');
+ dropdown.classList.toggle('open');
+ if(dropdown.classList.contains('open'))loadNotifications();
+}
+
+async function readNotification(id){
+ try{
+  const r=await fetch('/api/notifications/'+id+'/read',{
+   method:'PATCH',credentials:'same-origin'
+  });
+  if(!r.ok)throw Error('Não foi possível actualizar.');
+  await loadNotifications();
+ }catch(e){alert(e.message)}
+}
+
+async function markAllNotifications(){
+ try{
+  const r=await fetch('/api/notifications/read-all',{
+   method:'PATCH',credentials:'same-origin'
+  });
+  if(!r.ok)throw Error('Não foi possível actualizar.');
+  await loadNotifications();
+ }catch(e){alert(e.message)}
+}
+
 function page(id){
   document.querySelectorAll('section').forEach(section=>{
     section.classList.add('hidden');
@@ -266,6 +398,7 @@ function openWorkerPanel(type){
 
 function enter(u){
  updateMainNav(u.role);
+ showNotificationBell(u.role);
  if(u.role==='admin'){page('admin');loadAdmin()}
  else{page('dashboard');loadUser()}
 }
@@ -296,6 +429,10 @@ if(type==='mine'){
  d.items.length?d.items.map(x=>
  `<div class="card">
   <h3>${esc(x.task?.title||x.taskTitle||'Tarefa')}</h3>
+  <div class="card" style="background:#f4f7f6;padding:12px;margin:12px 0">
+   <strong>📋 Instruções da tarefa:</strong>
+   <p style="white-space:pre-wrap">${esc(x.description||x.task?.description||'Instruções não disponíveis.')}</p>
+  </div>
   <p>Prémio: ${Number(x.reward||0).toFixed(2)} MT</p>
   <p>Estado: <b>${esc(x.status)}</b></p>
   ${x.status==='accepted'?`
@@ -405,6 +542,7 @@ async function sendMessage(e){
 async function logout(){
  try{
   await fetch('/api/logout',{method:'POST',credentials:'same-origin'});
+  showNotificationBell(null);
   resetMainNav();
   page('home');
  }catch(e){
