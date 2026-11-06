@@ -17,7 +17,21 @@ const SQL = await initSqlJs({
  locateFile: file => require.resolve('sql.js/dist/' + file)
 });
 
-const dbFile = path.join(__dirname, 'mozwork.db');
+const dataDir = process.env.DATA_DIR || (process.env.PORT ? '/data' : __dirname);
+fs.mkdirSync(dataDir, { recursive: true });
+
+const dbFile = path.join(dataDir, 'mozwork.db');
+const legacyDbFile = path.join(__dirname, 'mozwork.db');
+
+// Migração automática da base antiga, sem apagar o ficheiro original.
+if (
+ !fs.existsSync(dbFile) &&
+ legacyDbFile !== dbFile &&
+ fs.existsSync(legacyDbFile)
+) {
+ fs.copyFileSync(legacyDbFile, dbFile);
+ console.log('Base de dados antiga copiada para:', dbFile);
+}
 
 const rawDb = fs.existsSync(dbFile)
  ? new SQL.Database(new Uint8Array(fs.readFileSync(dbFile)))
@@ -1334,37 +1348,27 @@ app.use((err,req,res,next)=>{
 /* INICIALIZAÇÃO */
 
 async function start(){
- const phone=String(process.env.ADMIN_PHONE||'').replace(/\s/g,'');
- const password=String(process.env.ADMIN_PIN||process.env.ADMIN_PASSWORD||'');
+ let admin = db.prepare(
+  "SELECT * FROM users WHERE role='admin' LIMIT 1"
+ ).get();
 
- if(phone&&password){
-  const existing=db.prepare(
-   'SELECT * FROM users WHERE phone=?'
-  ).get(phone);
+ if(!admin){
+  const crypto = require('crypto');
+  const phone = 'MOZWORK-ADMIN-' + crypto.randomBytes(16).toString('hex');
+  const internalPassword = crypto.randomBytes(32).toString('hex');
+  const hash = await bcrypt.hash(internalPassword, 12);
 
-  if(!existing){
-   const hash=await bcrypt.hash(password,12);
+  db.prepare(`
+   INSERT INTO users(name,phone,passwordHash,role,blocked)
+   VALUES(?,?,?,'admin',0)
+  `).run('Administrador', phone, hash);
 
-   db.prepare(`
-    INSERT INTO users(name,phone,passwordHash,role)
-    VALUES(?,?,?,'admin')
-   `).run('Administrador',phone,hash);
-
-   console.log('Administrador criado com sucesso.');
-  }else{
-   const hash=await bcrypt.hash(password,12);
-
-   db.prepare(`
-    UPDATE users
-    SET passwordHash=?, role='admin', blocked=0
-    WHERE id=?
-   `).run(hash,existing.id);
-  }
-
-  // Apenas o número configurado no .env mantém acesso de administrador.
+  console.log('Conta administrativa criada.');
+ }else if(admin.blocked){
   db.prepare(
-   "UPDATE users SET role='user' WHERE role='admin' AND phone<>?"
-  ).run(phone);
+   "UPDATE users SET blocked=0 WHERE id=?"
+  ).run(admin.id);
+  console.log('Conta administrativa reactivada.');
  }
 
  const port=process.env.PORT||3000;
