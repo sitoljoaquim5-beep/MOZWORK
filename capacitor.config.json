@@ -1,0 +1,9 @@
+{
+  "appId": "mz.mozwork.app",
+  "appName": "MOZWORK",
+  "webDir": "public",
+  "server": {
+    "url": "https://mozwork.alienghosthub.com",
+    "cleartext": false
+  }
+}

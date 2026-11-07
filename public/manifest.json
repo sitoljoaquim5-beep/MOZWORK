@@ -1,0 +1,21 @@
+{
+  "id": "/",
+  "name": "MOZWORK - Trabalho Digital",
+  "short_name": "MOZWORK",
+  "description": "Plataforma moçambicana de tarefas e trabalho digital.",
+  "lang": "pt-MZ",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f7f6",
+  "theme_color": "#008447",
+  "icons": [
+    {
+      "src": "/icons/mozwork.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

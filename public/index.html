@@ -3,7 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#087c36">
+<meta name="theme-color" content="#008447">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icons/mozwork.svg" type="image/svg+xml">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>MOZWORK | Trabalho Digital</title>
 <style>
 *{box-sizing:border-box}
@@ -796,6 +800,15 @@ loadAds();
 document.getElementById('loginForm').addEventListener('submit',loginForm);
 document.getElementById('registerForm').addEventListener('submit',registerForm);
 (async()=>{try{let d=await request('/me');enter(d.user)}catch{page('home')}})();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(() => console.log('MOZWORK PWA instalada'))
+      .catch(err => console.error('Erro PWA:', err));
+  });
+}
 </script>
 </body>
 </html>
