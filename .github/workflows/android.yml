@@ -53,6 +53,19 @@ jobs:
           echo "$KEYSTORE_BASE64" | base64 --decode > android/app/mozwork-release.jks
           test -s android/app/mozwork-release.jks
 
+      - name: Diagnosticar assinatura
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "===== VERIFICAR KEYSTORE ====="
+          test -s android/app/mozwork-release.jks && echo "KEYSTORE: OK" || { echo "KEYSTORE: FALTA"; exit 1; }
+          echo "===== VERIFICAR VARIAVEIS ====="
+          test -n "$KEYSTORE_PASSWORD" && echo "PASSWORD: OK" || { echo "PASSWORD: FALTA"; exit 1; }
+          test -n "$KEY_ALIAS" && echo "ALIAS: OK" || { echo "ALIAS: FALTA"; exit 1; }
+          test -n "$KEY_PASSWORD" && echo "KEY PASSWORD: OK" || { echo "KEY PASSWORD: FALTA"; exit 1; }
+
       - name: Compilar APK oficial assinado
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
