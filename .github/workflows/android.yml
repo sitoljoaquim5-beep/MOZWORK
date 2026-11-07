@@ -62,17 +62,22 @@ jobs:
           chmod +x android/gradlew
           ./android/gradlew -p android assembleRelease
 
-      - name: Preparar APK
+      - name: Verificar assinatura e preparar APK
         run: |
-          echo "===== PROCURAR APK GERADO ====="
-          find android/app/build/outputs/apk -type f -name "*.apk" -print
-          APK=$(find android/app/build/outputs/apk -type f -name "*.apk" | head -n 1)
-          if [ -z "$APK" ]; then
-            echo "ERRO: Nenhum APK foi gerado."
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          SIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+
+          test -s "$APK" || {
+            echo "ERRO: APK release não encontrado."
             exit 1
-          fi
+          }
+
+          "$SIGNER" verify --verbose --print-certs "$APK"
+
           cp "$APK" MOZWORK-OFICIAL.apk
-          echo "APK preparado: $APK"
+          test -s MOZWORK-OFICIAL.apk
+
+          echo "APK oficial assinado e verificado com sucesso."
 
       - name: Disponibilizar APK oficial
         uses: actions/upload-artifact@v4

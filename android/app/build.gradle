@@ -1,14 +1,18 @@
 apply plugin: 'com.android.application'
 
-def releaseStoreFile = file("mozwork-release.jks")
+def releaseStoreFile = file("$projectDir/mozwork-release.jks")
 def releaseStorePassword = System.getenv("KEYSTORE_PASSWORD")
 def releaseKeyAlias = System.getenv("KEY_ALIAS")
 def releaseKeyPassword = System.getenv("KEY_PASSWORD")
 
-def hasReleaseSigning = releaseStoreFile.exists() &&
+def hasReleaseSigning = releaseStoreFile.isFile() &&
         releaseStorePassword &&
         releaseKeyAlias &&
         releaseKeyPassword
+
+if (!hasReleaseSigning) {
+    throw new GradleException("ERRO: Assinatura oficial MOZWORK não configurada.")
+}
 
 android {
     namespace = "mz.mozwork.app"
@@ -28,21 +32,17 @@ android {
     }
 
     signingConfigs {
-        if (hasReleaseSigning) {
-            release {
-                storeFile releaseStoreFile
-                storePassword releaseStorePassword
-                keyAlias releaseKeyAlias
-                keyPassword releaseKeyPassword
-            }
+        release {
+            storeFile releaseStoreFile
+            storePassword releaseStorePassword
+            keyAlias releaseKeyAlias
+            keyPassword releaseKeyPassword
         }
     }
 
     buildTypes {
         release {
-            if (hasReleaseSigning) {
-                signingConfig signingConfigs.release
-            }
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
