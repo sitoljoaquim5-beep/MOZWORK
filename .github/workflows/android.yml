@@ -64,7 +64,15 @@ jobs:
 
       - name: Preparar APK
         run: |
-          cp android/app/build/outputs/apk/release/app-release.apk MOZWORK-OFICIAL.apk
+          echo "===== PROCURAR APK GERADO ====="
+          find android/app/build/outputs/apk -type f -name "*.apk" -print
+          APK=$(find android/app/build/outputs/apk -type f -name "*.apk" | head -n 1)
+          if [ -z "$APK" ]; then
+            echo "ERRO: Nenhum APK foi gerado."
+            exit 1
+          fi
+          cp "$APK" MOZWORK-OFICIAL.apk
+          echo "APK preparado: $APK"
 
       - name: Disponibilizar APK oficial
         uses: actions/upload-artifact@v4
