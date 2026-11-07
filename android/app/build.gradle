@@ -1,8 +1,19 @@
 apply plugin: 'com.android.application'
 
+def releaseStoreFile = file("mozwork-release.jks")
+def releaseStorePassword = System.getenv("KEYSTORE_PASSWORD")
+def releaseKeyAlias = System.getenv("KEY_ALIAS")
+def releaseKeyPassword = System.getenv("KEY_PASSWORD")
+
+def hasReleaseSigning = releaseStoreFile.exists() &&
+        releaseStorePassword &&
+        releaseKeyAlias &&
+        releaseKeyPassword
+
 android {
     namespace = "mz.mozwork.app"
     compileSdk = rootProject.ext.compileSdkVersion
+
     defaultConfig {
         applicationId "mz.mozwork.app"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -10,14 +21,28 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
         aaptOptions {
-             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
-             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile releaseStoreFile
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -25,7 +50,7 @@ android {
 }
 
 repositories {
-    flatDir{
+    flatDir {
         dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
     }
 }

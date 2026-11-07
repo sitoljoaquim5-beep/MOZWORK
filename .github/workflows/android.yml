@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    name: Gerar MOZWORK APK
+    name: Gerar MOZWORK APK Oficial
     runs-on: ubuntu-latest
 
     steps:
@@ -45,18 +45,30 @@ jobs:
       - name: Sincronizar Capacitor
         run: npx cap sync android
 
-      - name: Compilar APK
+      - name: Preparar assinatura digital
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          test -n "$KEYSTORE_BASE64"
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/mozwork-release.jks
+          test -s android/app/mozwork-release.jks
+
+      - name: Compilar APK oficial assinado
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           chmod +x android/gradlew
-          ./android/gradlew -p android assembleDebug
+          ./android/gradlew -p android assembleRelease
 
       - name: Preparar APK
         run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk MOZWORK.apk
+          cp android/app/build/outputs/apk/release/app-release.apk MOZWORK-OFICIAL.apk
 
-      - name: Disponibilizar APK
+      - name: Disponibilizar APK oficial
         uses: actions/upload-artifact@v4
         with:
-          name: MOZWORK-APK
-          path: MOZWORK.apk
+          name: MOZWORK-APK-OFICIAL
+          path: MOZWORK-OFICIAL.apk
           retention-days: 30
