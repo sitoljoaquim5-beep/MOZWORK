@@ -215,6 +215,14 @@ async function refresh(){
   if(currentPage==='requests')return await requests();
  }catch(e){$('content').innerHTML=`<div class="box">Erro: ${esc(e.message)}</div>`}
 }
+
+// PRESENÇA AUTOMÁTICA DOS UTILIZADORES
+setInterval(()=>{
+ if(currentPage==='users' && !$('appScreen').classList.contains('hidden')){
+  users().catch(e=>notice(e.message));
+ }
+},30000);
+
 async function overview(){
  const d=await api('/api/admin/summary');
  $('content').innerHTML=`
@@ -224,11 +232,110 @@ async function overview(){
  </div>
  <div class="box"><h2>Centro de administração</h2><p>Gerencie todas as operações da plataforma através do menu.</p><p class="muted">MOZWORK — Trabalho Digital. Ganhos Reais.</p></div>`;
 }
+
 async function users(){
  const d=await api('/api/admin/users');
- const rows=d.items.map(u=>`<tr><td>${esc(u.name)}</td><td>${esc(u.phone)}</td><td>${money(u.balance)}</td><td>${u.blocked?'<span class="badge red">Bloqueado</span>':'<span class="badge">Activo</span>'}</td><td>${date(u.createdAt)}</td><td>${btn(u.blocked?'Desbloquear':'Bloquear',`blockUser(${u.id},${!u.blocked})`,u.blocked?'':'danger')}</td></tr>`).join('');
- $('content').innerHTML=`<h1>Utilizadores</h1><p class="muted">Contas registadas na plataforma.</p>${table(['Nome','Telefone','Saldo','Estado','Registo','Acção'],rows)}`;
+
+ const rows=d.items.map(u=>{
+  const presence=u.online
+   ?'<span class="badge">🟢 Online</span>'
+   :'<span class="badge red">🔴 Offline</span>';
+
+  const activity=u.lastSeen?date(u.lastSeen):'Nunca esteve online';
+
+  return `<tr>
+   <td>${esc(u.name)}</td>
+   <td>${esc(u.phone)}</td>
+   <td><strong>${money(u.balance)}</strong></td>
+   <td>${presence}<br><small>${esc(activity)}</small></td>
+   <td>${u.blocked?'<span class="badge red">Bloqueado</span>':'<span class="badge">Activo</span>'}</td>
+   <td>${date(u.createdAt)}</td>
+   <td>${actions([
+    btn('Adicionar saldo',`balanceAdjust(${u.id},'credit')`,''),
+    btn('Retirar saldo',`balanceAdjust(${u.id},'debit')`,'danger'),
+    btn('Histórico',`balanceHistory(${u.id})`,'secondary'),
+    btn(u.blocked?'Desbloquear':'Bloquear',`blockUser(${u.id},${!u.blocked})`,u.blocked?'':'danger')
+   ])}</td>
+  </tr>`;
+ }).join('');
+
+ $('content').innerHTML=`
+ <h1>Utilizadores</h1>
+ <p class="muted">Gestão de contas, presença e saldos dos utilizadores.</p>
+ <div class="box">
+  <strong>Presença:</strong>
+  <span class="badge">🟢 Online</span>
+  <span class="badge red">🔴 Offline</span>
+  <p class="muted">Um utilizador é considerado online quando teve actividade nos últimos 2 minutos.</p>
+ </div>
+ ${table(['Nome','Telefone','Saldo','Presença / Última actividade','Estado','Registo','Acções'],rows)}`;
 }
+
+async function balanceAdjust(id,type){
+ const credit=type==='credit';
+ const amountText=prompt(
+  credit?'Valor a adicionar (MT):':'Valor a retirar (MT):'
+ );
+ if(amountText===null)return;
+
+ const amount=Number(amountText.replace(',','.'));
+ if(!Number.isFinite(amount)||amount<=0){
+  notice('Indica um valor válido.');
+  return;
+ }
+
+ const defaultReason=credit
+  ?'Reposição de saldo da plataforma anterior'
+  :'Ajuste de saldo autorizado pela administração';
+
+ const reason=prompt('Motivo obrigatório da operação:',defaultReason);
+ if(reason===null)return;
+ if(!reason.trim()){
+  notice('O motivo é obrigatório.');
+  return;
+ }
+
+ const operation=credit?'adicionar':'retirar';
+ if(!confirm(`Confirmas ${operation} ${amount.toFixed(2)} MT?\\nMotivo: ${reason.trim()}`))return;
+
+ try{
+  const d=await send('/api/admin/users/'+id+'/balance','POST',{
+   type,amount,reason:reason.trim()
+  });
+  notice('Operação concluída. Novo saldo: '+money(d.balanceAfter));
+  await users();
+ }catch(e){
+  notice(e.message);
+ }
+}
+
+async function balanceHistory(id){
+ try{
+  const d=await api('/api/admin/users/'+id+'/balance-history');
+
+  if(!d.items.length){
+   alert('Este utilizador ainda não tem operações manuais de saldo.');
+   return;
+  }
+
+  const lines=d.items.map(x=>{
+   const operation=x.type==='credit'?'ADICIONADO':'RETIRADO';
+   return [
+    operation+': '+money(x.amount),
+    'Saldo anterior: '+money(x.balanceBefore),
+    'Saldo posterior: '+money(x.balanceAfter),
+    'Motivo: '+x.reason,
+    'Administrador: '+(x.adminName||'Desconhecido'),
+    'Data: '+date(x.createdAt)
+   ].join('\\n');
+  });
+
+  alert('HISTÓRICO DE SALDO\\n\\n'+lines.join('\\n\\n--------------------\\n\\n'));
+ }catch(e){
+  notice(e.message);
+ }
+}
+
 async function blockUser(id,blocked){
  if(!confirm(blocked?'Bloquear este utilizador?':'Desbloquear este utilizador?'))return;
  try{await send('/api/admin/users/'+id,'PATCH',{blocked});notice('Utilizador actualizado.');users()}catch(e){notice(e.message)}

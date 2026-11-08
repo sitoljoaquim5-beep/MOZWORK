@@ -336,6 +336,32 @@ if(!existingColumns.includes('description'))
 if(!existingColumns.includes('rejectionReason'))
  db.exec("ALTER TABLE submissions ADD COLUMN rejectionReason TEXT");
 
+
+// PRESENÇA DOS UTILIZADORES
+const userColumns=db.prepare('PRAGMA table_info(users)').all();
+if(!userColumns.some(c=>c.name==='lastSeen')){
+ db.exec("ALTER TABLE users ADD COLUMN lastSeen TEXT");
+}
+
+// HISTÓRICO DE OPERAÇÕES DE SALDO
+db.exec(`
+CREATE TABLE IF NOT EXISTS balance_transactions (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ userId INTEGER NOT NULL,
+ adminId INTEGER NOT NULL,
+ type TEXT NOT NULL CHECK(type IN ('credit','debit')),
+ amount REAL NOT NULL,
+ balanceBefore REAL NOT NULL,
+ balanceAfter REAL NOT NULL,
+ reason TEXT NOT NULL,
+ createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(userId) REFERENCES users(id),
+ FOREIGN KEY(adminId) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_balance_transactions_user
+ ON balance_transactions(userId);
+`);
+
 const mt = n => Math.round((Number(n)+Number.EPSILON)*100)/100;
 
 const safe = u => ({
@@ -395,6 +421,17 @@ function auth(req,res,next){
  if(!u || u.blocked){
   req.session.destroy(()=>{});
   return res.status(401).json({error:'Conta indisponível.'});
+ }
+
+ // Actualizar última actividade dos utilizadores normais.
+ if(u.role==='user'){
+  const last=Date.parse(u.lastSeen||'');
+  if(!Number.isFinite(last)||Date.now()-last>30000){
+   const now=new Date().toISOString();
+   db.prepare('UPDATE users SET lastSeen=? WHERE id=?')
+    .run(now,u.id);
+   u.lastSeen=now;
+  }
  }
 
  req.user=u;
@@ -945,10 +982,97 @@ app.get('/api/admin/summary',auth,admin,wrap(async(req,res)=>{
 
 app.get('/api/admin/users',auth,admin,wrap(async(req,res)=>{
  const items=db.prepare(`
-  SELECT id,name,phone,role,balance,blocked,createdAt
+  SELECT id,name,phone,role,balance,blocked,createdAt,lastSeen
   FROM users WHERE role='user'
   ORDER BY createdAt DESC
  `).all();
+
+ const now=Date.now();
+ const usersWithPresence=items.map(u=>({
+  ...u,
+  online:Boolean(u.lastSeen &&
+   Number.isFinite(Date.parse(u.lastSeen)) &&
+   now-Date.parse(u.lastSeen)<=120000)
+ }));
+
+ res.json({items:usersWithPresence});
+}));
+
+// ADICIONAR OU RETIRAR SALDO
+app.post('/api/admin/users/:id/balance',auth,admin,wrap(async(req,res)=>{
+ const userId=Number(req.params.id);
+ const type=String(req.body.type||'');
+ const amount=mt(req.body.amount);
+ const reason=String(req.body.reason||'').trim();
+
+ if(!Number.isSafeInteger(userId)||userId<=0)
+  return res.status(400).json({error:'Utilizador inválido.'});
+
+ if(!['credit','debit'].includes(type))
+  return res.status(400).json({error:'Tipo de operação inválido.'});
+
+ if(!Number.isFinite(amount)||amount<=0||amount>1000000)
+  return res.status(400).json({error:'Indica um valor válido entre 0,01 e 1.000.000 MT.'});
+
+ if(!reason||reason.length>500)
+  return res.status(400).json({error:'O motivo é obrigatório e não pode ultrapassar 500 caracteres.'});
+
+ let resultData=null;
+
+ const transaction=db.transaction(()=>{
+  const u=db.prepare(`
+   SELECT id,balance FROM users
+   WHERE id=? AND role='user'
+  `).get(userId);
+
+  if(!u) throw Error('Utilizador não encontrado.');
+
+  const before=mt(u.balance);
+  const after=type==='credit'
+   ?mt(before+amount)
+   :mt(before-amount);
+
+  if(type==='debit'&&after<0)
+   throw Error('Saldo insuficiente para esta retirada.');
+
+  db.prepare('UPDATE users SET balance=? WHERE id=?')
+   .run(after,userId);
+
+  db.prepare(`
+   INSERT INTO balance_transactions
+   (userId,adminId,type,amount,balanceBefore,balanceAfter,reason)
+   VALUES(?,?,?,?,?,?,?)
+  `).run(
+   userId,req.user.id,type,amount,before,after,reason
+  );
+
+  resultData={balanceBefore:before,balanceAfter:after};
+ });
+
+ transaction();
+
+ res.json({ok:true,...resultData});
+}));
+
+// HISTÓRICO DE OPERAÇÕES DE SALDO
+app.get('/api/admin/users/:id/balance-history',auth,admin,wrap(async(req,res)=>{
+ const userId=Number(req.params.id);
+
+ const user=db.prepare(`
+  SELECT id FROM users WHERE id=? AND role='user'
+ `).get(userId);
+
+ if(!user)
+  return res.status(404).json({error:'Utilizador não encontrado.'});
+
+ const items=db.prepare(`
+  SELECT b.*,a.name AS adminName
+  FROM balance_transactions b
+  LEFT JOIN users a ON a.id=b.adminId
+  WHERE b.userId=?
+  ORDER BY b.id DESC
+  LIMIT 100
+ `).all(userId);
 
  res.json({items});
 }));
