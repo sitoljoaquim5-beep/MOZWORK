@@ -575,7 +575,10 @@ app.get('/api/tasks',auth,wrap(async(req,res)=>{
  const now=new Date().toISOString();
 
  const tasks=db.prepare(`
-  SELECT * FROM tasks
+  SELECT tasks.*,
+   (SELECT COUNT(*) FROM task_acceptances a
+    WHERE a.task=tasks.id) AS participants
+  FROM tasks
   WHERE active=1
   AND publishedAt<=?
   AND (expiresAt IS NULL OR expiresAt>?)
@@ -1015,7 +1018,11 @@ app.post('/api/admin/tasks',auth,admin,wrap(async(req,res)=>{
 
 app.get('/api/admin/tasks',auth,admin,wrap(async(req,res)=>{
  const items=db.prepare(`
-  SELECT * FROM tasks ORDER BY createdAt DESC
+  SELECT tasks.*,
+   (SELECT COUNT(*) FROM task_acceptances a
+    WHERE a.task=tasks.id) AS participants
+  FROM tasks
+  ORDER BY tasks.createdAt DESC
  `).all();
 
  res.json({items});

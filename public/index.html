@@ -465,6 +465,10 @@ if(type==='tasks'){
   <h3>${esc(t.title)}</h3>
   <p>${esc(t.description)}</p>
   <b>${Number(t.reward).toFixed(2)} MT</b>
+  <p>👥 <strong>${Number(t.participants||0)}</strong> pessoas aceitaram esta tarefa.</p>
+  <p>📊 Vagas: ${Number(t.slots)>0
+    ? Number(t.participants||0)+' / '+Number(t.slots)+' preenchidas'
+    : 'Sem limite definido'}</p>
   <p><button class="green" onclick="acceptTask(${t.id})">Aceitar tarefa</button></p>
  </div>`
  ).join(''):'<p>Não existem tarefas disponíveis neste momento.</p>');

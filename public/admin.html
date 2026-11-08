@@ -235,13 +235,13 @@ async function blockUser(id,blocked){
 }
 async function tasks(){
  const d=await api('/api/admin/tasks');
- const rows=d.items.map(t=>`<tr><td>${esc(t.title)}</td><td>${money(t.reward)}</td><td>${t.slots}</td><td>${t.active?'<span class="badge">Activa</span>':'<span class="badge red">Inactiva</span>'}</td><td>${date(t.publishedAt)}</td><td>${btn(t.active?'Desactivar':'Activar',`taskToggle(${t.id},${!t.active})`,'secondary')}</td></tr>`).join('');
+ const rows=d.items.map(t=>`<tr><td>${esc(t.title)}</td><td>${money(t.reward)}</td><td>${t.slots}</td><td><strong>👥 ${Number(t.participants||0)}</strong></td><td>${Number(t.slots)>0?Math.max(0,Number(t.slots)-Number(t.participants||0)):'Ilimitadas'}</td><td>${t.active?'<span class="badge">Activa</span>':'<span class="badge red">Inactiva</span>'}</td><td>${date(t.publishedAt)}</td><td>${btn(t.active?'Desactivar':'Activar',`taskToggle(${t.id},${!t.active})`,'secondary')}</td></tr>`).join('');
  $('content').innerHTML=`<h1>Gestão de tarefas</h1>
  <div class="box formbox"><h2>Criar tarefa</h2>
  <form id="taskForm">${field('Título','title')}${area('Descrição','description')}
  <div class="grid">${field('Recompensa (MT)','reward','number',true,'min="0.01" step="0.01"')}${field('Vagas','slots','number',false,'min="0" value="0"')}</div>
  <button>Publicar tarefa</button></form></div>
- <h2>Tarefas existentes</h2>${table(['Tarefa','Recompensa','Vagas','Estado','Publicação','Acção'],rows)}`;
+ <h2>Tarefas existentes</h2>${table(['Tarefa','Recompensa','Vagas totais','Participantes','Vagas disponíveis','Estado','Publicação','Acção'],rows)}`;
  $('taskForm').onsubmit=async e=>{
   e.preventDefault();
   try{await send('/api/admin/tasks','POST',formData(e.target));notice('Tarefa criada.');tasks()}catch(x){notice(x.message)}
@@ -316,7 +316,7 @@ async function proof(id,status){
  }
 }
 async function withdrawals(){
- const d=await api('/api/admin/withdrawals');
+ const d=await api('/api/withdrawals');
  const rows=d.items.map(w=>`<tr><td>${esc(w.user?.name||w.userName)}</td><td>${esc(w.phone||w.user?.phone||w.userPhone)}</td><td>${money(w.amount)}</td><td>${money(w.fee)}</td><td>${money(w.net)}</td><td>${esc(w.method)}</td><td>${esc(w.status)}</td><td>${w.status==='pending'?actions([btn('Marcar pago',`withdraw(${w.id},'paid')`),btn('Rejeitar',`withdraw(${w.id},'rejected')`,'danger')]):'—'}</td></tr>`).join('');
  $('content').innerHTML=`<h1>Levantamentos</h1>${table(['Utilizador','Telefone','Valor','Taxa','Líquido','Método','Estado','Acção'],rows)}`;
 }
