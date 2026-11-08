@@ -73,7 +73,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           chmod +x android/gradlew
-          ./android/gradlew -p android assembleRelease
+          ./android/gradlew -p android assembleRelease bundleRelease
 
       - name: Verificar assinatura e preparar APK
         run: |
@@ -90,11 +90,25 @@ jobs:
           cp "$APK" MOZWORK-OFICIAL.apk
           test -s MOZWORK-OFICIAL.apk
 
-          echo "APK oficial assinado e verificado com sucesso."
+          AAB="android/app/build/outputs/bundle/release/app-release.aab"
 
-      - name: Disponibilizar APK oficial
+          test -s "$AAB" || {
+            echo "ERRO: AAB não encontrado."
+            exit 1
+          }
+
+          jarsigner -verify -verbose -certs "$AAB"
+
+          cp "$AAB" MOZWORK-OFICIAL.aab
+          test -s MOZWORK-OFICIAL.aab
+
+          echo "APK e AAB oficiais assinados e verificados com sucesso."
+
+      - name: Disponibilizar APK e AAB oficiais
         uses: actions/upload-artifact@v4
         with:
-          name: MOZWORK-APK-OFICIAL
-          path: MOZWORK-OFICIAL.apk
+          name: MOZWORK-PACOTE-OFICIAL
+          path: |
+            MOZWORK-OFICIAL.apk
+            MOZWORK-OFICIAL.aab
           retention-days: 30
