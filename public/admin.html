@@ -428,8 +428,38 @@ async function withdrawals(){
  $('content').innerHTML=`<h1>Levantamentos</h1>${table(['Utilizador','Telefone','Valor','Taxa','Líquido','Método','Estado','Acção'],rows)}`;
 }
 async function withdraw(id,status){
- if(!confirm(status==='paid'?'Confirmar pagamento?':'Rejeitar e devolver o valor ao saldo?'))return;
- try{await send('/api/admin/withdrawals/'+id,'PATCH',{status});notice('Pedido actualizado.');withdrawals()}catch(e){notice(e.message)}
+ let receipt='';
+
+ if(status==='paid'){
+  receipt=prompt('📩 COLE O COMPROVATIVO DE PAGAMENTO:');
+  if(receipt===null)return;
+  receipt=receipt.trim();
+
+  if(!receipt){
+   notice('Cole o comprovativo antes de aprovar.');
+   return;
+  }
+
+  if(receipt.length>5000){
+   notice('O comprovativo ultrapassa 5000 caracteres.');
+   return;
+  }
+
+  if(!confirm('Confirmar o pagamento e enviar este comprovativo ao cliente?'))return;
+ }else{
+  if(!confirm('Rejeitar e devolver o valor ao saldo?'))return;
+ }
+
+ try{
+  await send('/api/admin/withdrawals/'+id,'PATCH',{
+   status,
+   receipt
+  });
+  notice(status==='paid'?'Pagamento aprovado e comprovativo enviado!':'Pedido rejeitado.');
+  withdrawals();
+ }catch(e){
+  notice(e.message);
+ }
 }
 
 async function messages(){

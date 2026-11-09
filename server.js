@@ -1303,10 +1303,14 @@ app.patch('/api/admin/submissions/:id',auth,admin,wrap(async(req,res)=>{
 
 app.patch('/api/admin/withdrawals/:id',auth,admin,wrap(async(req,res)=>{
  const status=req.body.status;
+ const receipt=String(req.body.receipt||'').trim();
 
  if(!['paid','rejected'].includes(status))
+  return res.status(400).json({error:'Estado inválido.'});
+
+ if(status==='paid' && (!receipt || receipt.length>5000))
   return res.status(400).json({
-   error:'Estado inválido.'
+   error:'Cole o comprovativo completo (máximo 5000 caracteres).'
   });
 
  let reviewedWithdrawal=null;
@@ -1317,8 +1321,7 @@ app.patch('/api/admin/withdrawals/:id',auth,admin,wrap(async(req,res)=>{
    WHERE id=? AND status='pending'
   `).get(req.params.id);
 
-  if(!w)
-   throw Error('Pedido já analisado.');
+  if(!w) throw Error('Pedido já analisado.');
 
   reviewedWithdrawal=w;
 
@@ -1331,26 +1334,31 @@ app.patch('/api/admin/withdrawals/:id',auth,admin,wrap(async(req,res)=>{
     UPDATE users SET balance=balance+? WHERE id=?
    `).run(w.amount,w.user);
   }
+
+  if(status==='paid'){
+   db.prepare(`
+    INSERT INTO messages(user,sender,text)
+    VALUES(?,?,?)
+   `).run(w.user,'admin',receipt);
+  }
  });
 
  transaction();
 
- if(reviewedWithdrawal){
-  if(status==='paid'){
-   notifyUser(
-    reviewedWithdrawal.user,
-    'Levantamento aprovado',
-    'O teu levantamento foi marcado como pago pela administração.',
-    'withdrawal'
-   );
-  }else{
-   notifyUser(
-    reviewedWithdrawal.user,
-    'Levantamento rejeitado',
-    'O teu levantamento foi rejeitado. O valor foi devolvido ao teu saldo.',
-    'withdrawal'
-   );
-  }
+ if(status==='paid'){
+  notifyUser(
+   reviewedWithdrawal.user,
+   'Comprovativo do levantamento',
+   receipt,
+   'withdrawal'
+  );
+ }else{
+  notifyUser(
+   reviewedWithdrawal.user,
+   'Levantamento rejeitado',
+   'O teu levantamento foi rejeitado. O valor foi devolvido ao teu saldo.',
+   'withdrawal'
+  );
  }
 
  res.json({ok:true});
