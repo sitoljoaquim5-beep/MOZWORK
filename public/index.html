@@ -98,12 +98,44 @@ header{position:sticky;top:0;z-index:1000}
  .notification-dropdown{right:0}
 }
 
+
+.whatsapp-header{
+ display:inline-flex;align-items:center;justify-content:center;
+ background:#25D366;color:#fff;padding:11px 15px;
+ border-radius:10px;text-decoration:none;font-weight:800;
+ font-size:14px;white-space:nowrap;
+ box-shadow:0 3px 9px #0002;
+}
+.whatsapp-header:hover{background:#128C7E}
+.whatsapp-community{
+ background:linear-gradient(135deg,#075e36,#008447);
+ color:white;text-align:center;padding:25px 18px;
+ border-radius:16px;margin:20px auto;
+ max-width:850px;box-shadow:0 5px 18px #003e2c22;
+}
+.whatsapp-community h2{color:#fff;margin-bottom:10px}
+.whatsapp-community p{line-height:1.6}
+.whatsapp-community a{
+ display:inline-block;background:#25D366;color:white;
+ padding:14px 24px;border-radius:10px;
+ text-decoration:none;font-weight:800;margin-top:10px;
+}
+@media(max-width:650px){
+ .whatsapp-header{font-size:12px;padding:10px}
+}
+
 </style>
 </head>
 <body>
 
 <header>
 <div class="logo">🇲🇿 MOZWORK</div>
+
+<a class="whatsapp-header"
+ href="https://chat.whatsapp.com/HtOUh6LdPZhKAfGynwKPsL?s=cl&p=a&mlu=4&ilr=4&iam=2"
+ target="_blank" rel="noopener noreferrer">
+ 💬 Grupo WhatsApp
+</a>
 <div class="notification-wrap" id="notificationWrap">
  <button class="notification-bell" id="notificationBell"
   onclick="toggleNotifications()" aria-label="Notificações">
@@ -143,6 +175,22 @@ text-decoration:none;font-size:17px;box-shadow:0 4px 12px #003e2c44">
 <p style="font-size:13px;margin-top:12px">
 Aplicativo oficial para Android. Descarregue e instale directamente, sem extrair ZIP.
 </p>
+</div>
+</section>
+
+<section class="section">
+<div class="whatsapp-community">
+ <h2>💬 Comunidade Oficial MOZWORK</h2>
+ <p>Faça parte da nossa comunidade no WhatsApp!
+ Converse com outros membros, acompanhe novidades,
+ receba informações e fique por dentro da MOZWORK.</p>
+ <a href="https://chat.whatsapp.com/HtOUh6LdPZhKAfGynwKPsL?s=cl&p=a&mlu=4&ilr=4&iam=2"
+ target="_blank" rel="noopener noreferrer">
+ 💚 ENTRAR NO GRUPO WHATSAPP
+ </a>
+ <p style="font-size:12px;margin-top:12px">
+ Comunidade oficial MOZWORK 🇲🇿
+ </p>
 </div>
 </section>
 
