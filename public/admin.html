@@ -103,6 +103,7 @@ header{padding:13px}
 <button data-page="bots">🤖 Bots automáticos</button>
 <button data-page="ads">📢 Publicidade</button>
 <button data-page="requests">📨 Pedidos de anúncios</button>
+<button data-page="recovery">🔐 Recuperação de contas</button>
 </aside>
 
 <main>
@@ -213,6 +214,7 @@ async function refresh(){
   if(currentPage==='bots')return await bots();
   if(currentPage==='ads')return await ads();
   if(currentPage==='requests')return await requests();
+  if(currentPage==='recovery')return await passwordRecoveries();
  }catch(e){$('content').innerHTML=`<div class="box">Erro: ${esc(e.message)}</div>`}
 }
 
@@ -758,6 +760,85 @@ async function adRequest(id,status){
   requests();
  }catch(e){notice(e.message)}
 }
+
+/* RECUPERAÇÃO DE CONTAS */
+async function passwordRecoveries(){
+ const d=await api('/api/admin/password-recovery');
+
+ const rows=d.items.map(r=>{
+  let actionsHtml='—';
+
+  if(r.status==='pending' && r.accountId){
+   actionsHtml=actions([
+    btn('Confirmar identidade',`verifyRecovery(${r.id})`),
+    btn('Rejeitar',`rejectRecovery(${r.id})`,'danger')
+   ]);
+  }else if(r.status==='verified'){
+   actionsHtml=actions([
+    btn('Gerar código',`generateRecoveryCode(${r.id})`),
+    btn('Rejeitar',`rejectRecovery(${r.id})`,'danger')
+   ]);
+  }
+
+  return `<tr>
+   <td>${r.id}</td>
+   <td>${esc(r.userName||'Conta não encontrada')}</td>
+   <td>${esc(r.phone)}</td>
+   <td>${esc(r.status)}</td>
+   <td>${r.codeExpiresAt?date(r.codeExpiresAt):'—'}</td>
+   <td>${actionsHtml}</td>
+  </tr>`;
+ }).join('');
+
+ $('content').innerHTML=`
+  <h1>🔐 Recuperação de contas</h1>
+  <p class="muted">Confirme a identidade do trabalhador antes de gerar um código. Contacte-o pessoalmente pelo telefone registado.</p>
+  <div class="box">
+   <strong>Segurança</strong>
+   <p>Os códigos são válidos por 15 minutos e podem ser utilizados apenas uma vez.</p>
+   <p>O código aparece apenas no momento em que é gerado. Copie-o e envie-o pessoalmente ao trabalhador.</p>
+  </div>
+  ${table(['ID','Utilizador','Telefone','Estado','Validade do código','Acções'],rows)}
+ `;
+}
+
+async function verifyRecovery(id){
+ if(!confirm('Já confirmou a identidade deste trabalhador por contacto pessoal?'))return;
+
+ try{
+  const d=await send('/api/admin/password-recovery/'+id+'/verify','POST',{});
+  notice(d.message);
+  passwordRecoveries();
+ }catch(e){notice(e.message)}
+}
+
+async function generateRecoveryCode(id){
+ if(!confirm('Gerar um código de recuperação válido por 15 minutos?'))return;
+
+ try{
+  const d=await send('/api/admin/password-recovery/'+id+'/code','POST',{});
+
+  window.prompt(
+   'COPIE ESTE CÓDIGO E ENVIE AO TRABALHADOR PELO WHATSAPP. O código não será mostrado novamente:',
+   d.code
+  );
+
+  notice('Código gerado. Envie-o pessoalmente ao trabalhador.');
+  passwordRecoveries();
+ }catch(e){notice(e.message)}
+}
+
+async function rejectRecovery(id){
+ if(!confirm('Rejeitar este pedido de recuperação?'))return;
+
+ try{
+  await send('/api/admin/password-recovery/'+id+'/reject','POST',{});
+  notice('Pedido rejeitado.');
+  passwordRecoveries();
+ }catch(e){notice(e.message)}
+}
+
+
 checkSession();
 </script>
 </body>

@@ -199,6 +199,36 @@ Aplicativo oficial para Android. Descarregue e instale directamente, sem extrair
 <input name="pin" type="password" placeholder="PIN" required>
 <button class="green">ENTRAR</button>
 </form>
+<p style="text-align:center;margin-top:15px">
+<a href="#" onclick="page('recoverPin');return false">🔑 Esqueci o PIN</a>
+</p>
+</div>
+</section>
+
+<section id="recoverPin" class="section hidden">
+<div class="card">
+<h2>🔑 Recuperar PIN</h2>
+<p>Introduza o telefone associado à sua conta. O administrador analisará o pedido e poderá enviar-lhe um código pelo WhatsApp.</p>
+<form id="recoveryRequestForm">
+<input name="phone" placeholder="Telefone registado" required inputmode="numeric">
+<button class="green">SOLICITAR RECUPERAÇÃO</button>
+</form>
+<button type="button" onclick="page('resetPin')">Já tenho o código</button>
+<button type="button" onclick="page('login')">Voltar ao login</button>
+</div>
+</section>
+
+<section id="resetPin" class="section hidden">
+<div class="card">
+<h2>🔐 Criar novo PIN</h2>
+<p>Introduza o telefone, o código de seis dígitos recebido e o novo PIN.</p>
+<form id="recoveryResetForm">
+<input name="phone" placeholder="Telefone registado" required inputmode="numeric">
+<input name="code" placeholder="Código de recuperação (6 dígitos)" required inputmode="numeric" maxlength="6">
+<input name="newPin" type="password" placeholder="Novo PIN (4 a 20 dígitos)" required minlength="4" maxlength="20" inputmode="numeric">
+<button class="green">ALTERAR PIN</button>
+</form>
+<button type="button" onclick="page('login')">Voltar ao login</button>
 </div>
 </section>
 
@@ -426,6 +456,29 @@ let d=await request('/register',Object.fromEntries(f));
 enter(d.user);
 }catch(x){alert(x.message)}
 }
+
+/* RECUPERAÇÃO DE PIN */
+async function recoveryRequestForm(e){
+ e.preventDefault();
+ try{
+  const data=Object.fromEntries(new FormData(e.target));
+  const d=await request('/password-recovery/request',data);
+  alert(d.message);
+  e.target.reset();
+ }catch(x){alert(x.message)}
+}
+
+async function recoveryResetForm(e){
+ e.preventDefault();
+ try{
+  const data=Object.fromEntries(new FormData(e.target));
+  const d=await request('/password-recovery/reset',data);
+  alert(d.message);
+  e.target.reset();
+  page('login');
+ }catch(x){alert(x.message)}
+}
+
 function updateMainNav(role){
  const admin = role === 'admin';
  document.getElementById('mainNav').classList.add('hidden');
@@ -454,6 +507,105 @@ document.getElementById('username').textContent=d.user.name;
 document.getElementById('balance').textContent=Number(d.user.balance).toFixed(2);
 panel('tasks');
 }
+
+let myTasksCache=[];
+
+function showMyTasks(filter='accepted'){
+ const p=document.getElementById('panel');
+ const all=myTasksCache;
+
+ const groups={
+  approved:all.filter(x=>x.status==='approved'),
+  not_done:all.filter(x=>x.status==='not_done'),
+  accepted:all.filter(x=>x.status==='accepted'),
+  pending:all.filter(x=>x.status==='pending'),
+  rejected:all.filter(x=>x.status==='rejected' && Number(x.isLatest)===1)
+ };
+
+ const tabs=[
+  ['approved','🟢 Concluídas'],
+  ['not_done','🔴 Não feitas'],
+  ['accepted','🟡 Aceites'],
+  ['pending','🔵 Em análise'],
+  ['rejected','🟠 Rejeitadas']
+ ];
+
+ const labels={
+  approved:'Aprovada',
+  not_done:'Prazo terminado',
+  accepted:'Em execução',
+  pending:'Aguardando aprovação',
+  rejected:'Rejeitada'
+ };
+
+ let html='<h2>📋 Minhas tarefas</h2>';
+ html+='<div style="display:flex;gap:8px;overflow-x:auto;padding:8px 0">';
+
+ for(const [key,label] of tabs){
+  html+=`<button type="button" class="${filter===key?'green':''}" onclick="showMyTasks('${key}')" style="min-width:max-content;padding:10px">
+   ${label} (${groups[key].length})
+  </button>`;
+ }
+
+ html+='</div>';
+
+ const items=groups[filter];
+
+ if(!items.length){
+  html+=`<div class="card"><p>Não existem tarefas nesta categoria.</p></div>`;
+  p.innerHTML=html;
+  return;
+ }
+
+ for(const x of items){
+  const id=x.task?.id||x.task;
+  const title=esc(x.task?.title||x.taskTitle||'Tarefa');
+  const description=esc(x.task?.description||x.taskDescription||'Instruções não disponíveis.');
+
+  html+=`
+  <div class="card">
+   <h3>${title}</h3>
+   <div class="card" style="background:#f4f7f6;padding:12px;margin:12px 0">
+    <strong>📋 Instruções da tarefa:</strong>
+    <p style="white-space:pre-wrap">${description}</p>
+   </div>
+
+   <p>Prémio: ${Number(x.reward||0).toFixed(2)} MT</p>
+   <p>Estado: <b>${labels[filter]}</b></p>
+  `;
+
+  if(filter==='rejected'){
+   html+=`
+    <div class="card" style="background:#fff3f0;border-left:4px solid #b42318;padding:12px">
+     <strong style="color:#b42318">⚠️ Motivo da rejeição</strong>
+     <p style="white-space:pre-wrap">${esc(x.rejectionReason||'Não foi indicado um motivo.')}</p>
+     <p>Corrige a prova e envia novamente.</p>
+    </div>`;
+  }
+
+  if(filter==='accepted'||filter==='rejected'){
+   html+=`
+    <form onsubmit="submitTask(event,'${id}')">
+     <label>Tipo de comprovativo</label>
+     <select name="proofType" onchange="proofFields(this,${id})" required>
+      <option value="photo">Somente fotografia</option>
+      <option value="link">Somente link</option>
+      <option value="photo_description">Fotografia + descrição</option>
+     </select>
+     <div id="proof-fields-${id}">
+      <label>Fotografia da prova</label>
+      <input type="file" name="photo" accept="image/jpeg,image/png,image/webp,image/gif" required>
+     </div>
+     <button class="green">Enviar comprovativo</button>
+    </form>`;
+  }
+
+  html+='</div>';
+ }
+
+ p.innerHTML=html;
+}
+
 async function panel(type){
 let p=document.getElementById('panel');
 try{
@@ -475,41 +627,8 @@ if(type==='tasks'){
 }
 if(type==='mine'){
  let d=await request('/my-submissions');
- p.innerHTML='<h2>Minhas tarefas</h2>'+(
- d.items.length?d.items.map(x=>
- `<div class="card">
-  <h3>${esc(x.task?.title||x.taskTitle||'Tarefa')}</h3>
-  <div class="card" style="background:#f4f7f6;padding:12px;margin:12px 0">
-   <strong>📋 Instruções da tarefa:</strong>
-   <p style="white-space:pre-wrap">${esc(x.task?.description||x.taskDescription||'Instruções não disponíveis.')}</p>
-  </div>
-  <p>Prémio: ${Number(x.reward||0).toFixed(2)} MT</p>
-  <p>Estado: <b>${esc(x.status)}</b></p>
-  ${x.status==='rejected'?`
-   <div class="card" style="background:#fff3f0;border-left:4px solid #b42318;padding:12px;margin:12px 0">
-    <strong style="color:#b42318">⚠️ Motivo da rejeição</strong>
-    <p style="white-space:pre-wrap">${esc(x.rejectionReason||'Não foi indicado um motivo.')}</p>
-    <strong>O que fazer agora?</strong>
-    <p>Consulta novamente as instruções originais acima, corrige a tua execução e envia uma nova prova.</p>
-   </div>
-  `:''}
-  ${x.status==='accepted'||(x.status==='rejected'&&Number(x.isLatest)===1)?`
-   ${x.status==='rejected'?'<p style="color:#b42318"><strong>Corrige a prova e envia novamente utilizando o formulário abaixo.</strong></p>':''}
-   <form onsubmit="submitTask(event,'${x.task?.id||x.task}')">
-    <label>Tipo de comprovativo</label>
-    <select name="proofType" onchange="proofFields(this,${x.task?.id||x.task})" required>
-     <option value="photo">Somente fotografia</option>
-     <option value="link">Somente link</option>
-     <option value="photo_description">Fotografia + descrição</option>
-    </select>
-    <div id="proof-fields-${x.task?.id||x.task}">
-     <label>Fotografia da prova</label>
-     <input type="file" name="photo" accept="image/jpeg,image/png,image/webp,image/gif" required>
-    </div>
-    <button class="green">Enviar comprovativo</button>
-   </form>`:''}
- </div>`
- ).join(''):'<p>Ainda não aceitou nenhuma tarefa.</p>');
+ myTasksCache=d.items||[];
+ showMyTasks('accepted');
 }
 if(type==='withdraw'){
 p.innerHTML=`<div class="card"><h2>Levantamento</h2><p>Mínimo: 20 MT · Taxa: 10%</p><form onsubmit="withdraw(event)"><input name="amount" type="number" min="20" placeholder="Valor" required><select name="method"><option>M-Pesa</option><option>e-Mola</option></select><input name="phone" placeholder="Número de pagamento" required><button class="green">Enviar pedido</button></form></div>`;
@@ -816,6 +935,8 @@ resetMainNav();
 loadAds();
 document.getElementById('loginForm').addEventListener('submit',loginForm);
 document.getElementById('registerForm').addEventListener('submit',registerForm);
+document.getElementById('recoveryRequestForm').addEventListener('submit',recoveryRequestForm);
+document.getElementById('recoveryResetForm').addEventListener('submit',recoveryResetForm);
 (async()=>{try{let d=await request('/me');enter(d.user)}catch{page('home')}})();
 </script>
 <script>

@@ -9,6 +9,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const multer = require('multer');
+const crypto = require('crypto');
 
 async function boot(){
 const app = express();
@@ -321,6 +322,29 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user
  ON notifications(user);
 `);
 
+
+/* RECUPERAÇÃO SEGURA DE PIN */
+db.exec(`
+CREATE TABLE IF NOT EXISTS password_recovery_requests (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ userId INTEGER,
+ phone TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'pending',
+ verifiedAt TEXT,
+ codeHash TEXT,
+ codeExpiresAt TEXT,
+ codeAttempts INTEGER NOT NULL DEFAULT 0,
+ usedAt TEXT,
+ createdAtMs INTEGER NOT NULL,
+ updatedAt TEXT,
+ FOREIGN KEY(userId) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_recovery_phone
+ ON password_recovery_requests(phone);
+CREATE INDEX IF NOT EXISTS idx_recovery_status
+ ON password_recovery_requests(status);
+`);
+
 const submissionColumns=db.prepare('PRAGMA table_info(submissions)').all();
 const existingColumns=submissionColumns.map(c=>c.name);
 
@@ -530,6 +554,272 @@ app.post('/api/login',wrap(async(req,res)=>{
 
  res.json({user:safe(u)});
 }));
+
+
+/* RECUPERAÇÃO MANUAL DO PIN */
+
+/* O texto da resposta é igual para números registados e não registados. */
+const recoveryGenericMessage =
+ 'Se existir uma conta com este telefone, o pedido será analisado pelo administrador.';
+
+const recoveryRequestLimiter = rateLimit({
+ windowMs:15*60*1000,
+ limit:5,
+ standardHeaders:true,
+ legacyHeaders:false,
+ message:{error:recoveryGenericMessage}
+});
+
+const recoveryResetLimiter = rateLimit({
+ windowMs:15*60*1000,
+ limit:10,
+ standardHeaders:true,
+ legacyHeaders:false,
+ message:{error:'Demasiadas tentativas. Aguarde 15 minutos.'}
+});
+
+/* 1. Trabalhador solicita recuperação */
+app.post('/api/password-recovery/request',
+ recoveryRequestLimiter,
+ wrap(async(req,res)=>{
+  const phone=String(req.body.phone||'').replace(/\s/g,'');
+
+  if(!/^[0-9]{9,15}$/.test(phone))
+   return res.json({ok:true,message:recoveryGenericMessage});
+
+  const now=Date.now();
+
+  const recent=db.prepare(`
+   SELECT id FROM password_recovery_requests
+   WHERE phone=? AND createdAtMs>?
+   ORDER BY id DESC LIMIT 1
+  `).get(phone,now-60000);
+
+  if(recent)
+   return res.json({ok:true,message:recoveryGenericMessage});
+
+  const user=db.prepare(`
+   SELECT id FROM users
+   WHERE phone=? AND role='user' AND blocked=0
+  `).get(phone);
+
+  db.prepare(`
+   INSERT INTO password_recovery_requests(userId,phone,status,createdAtMs)
+   VALUES(?,?, 'pending', ?)
+  `).run(user ? user.id : null,phone,now);
+
+  res.json({ok:true,message:recoveryGenericMessage});
+ })
+);
+
+/* 2. Administrador consulta pedidos */
+app.get('/api/admin/password-recovery',auth,admin,wrap(async(req,res)=>{
+ const items=db.prepare(`
+  SELECT r.id,r.phone,r.status,r.createdAtMs,r.verifiedAt,
+         r.codeExpiresAt,r.codeAttempts,
+         u.name AS userName,u.id AS accountId
+  FROM password_recovery_requests r
+  LEFT JOIN users u ON u.id=r.userId
+  ORDER BY r.id DESC
+  LIMIT 100
+ `).all();
+
+ res.json({items});
+}));
+
+/* 3. Administrador confirma identidade */
+app.post('/api/admin/password-recovery/:id/verify',
+ auth,admin,wrap(async(req,res)=>{
+  const id=Number(req.params.id);
+
+  const item=db.prepare(`
+   SELECT * FROM password_recovery_requests WHERE id=?
+  `).get(id);
+
+  if(!item || !item.userId || item.status!=='pending')
+   return res.status(400).json({
+    error:'Pedido inválido, conta não encontrada ou já analisado.'
+   });
+
+  const user=db.prepare(`
+   SELECT id FROM users WHERE id=? AND role='user' AND blocked=0
+  `).get(item.userId);
+
+  if(!user)
+   return res.status(400).json({error:'Conta indisponível.'});
+
+  db.prepare(`
+   UPDATE password_recovery_requests
+   SET status='verified',verifiedAt=?,updatedAt=?
+   WHERE id=?
+  `).run(new Date().toISOString(),new Date().toISOString(),id);
+
+  res.json({ok:true,message:'Identidade confirmada. Já pode gerar o código.'});
+ })
+);
+
+/* 4. Gerar código: só depois da verificação manual */
+app.post('/api/admin/password-recovery/:id/code',
+ auth,admin,wrap(async(req,res)=>{
+  const id=Number(req.params.id);
+
+  const item=db.prepare(`
+   SELECT * FROM password_recovery_requests WHERE id=?
+  `).get(id);
+
+  if(!item || !item.userId || item.status!=='verified')
+   return res.status(400).json({
+    error:'Primeiro confirme a identidade do trabalhador.'
+   });
+
+  const code=String(crypto.randomInt(100000,1000000));
+  const codeHash=await bcrypt.hash(code,12);
+  const expires=new Date(Date.now()+15*60*1000).toISOString();
+
+  db.prepare(`
+   UPDATE password_recovery_requests
+   SET status='code_generated',
+       codeHash=?,
+       codeExpiresAt=?,
+       codeAttempts=0,
+       updatedAt=?
+   WHERE id=?
+  `).run(codeHash,expires,new Date().toISOString(),id);
+
+  /* O código em texto só é devolvido nesta resposta. */
+  res.json({
+   ok:true,
+   code,
+   expiresAt:expires,
+   message:'Copie o código e envie pessoalmente ao trabalhador. Não será mostrado novamente.'
+  });
+ })
+);
+
+/* 5. Administrador pode rejeitar um pedido */
+app.post('/api/admin/password-recovery/:id/reject',
+ auth,admin,wrap(async(req,res)=>{
+  const id=Number(req.params.id);
+
+  const item=db.prepare(`
+   SELECT id,status FROM password_recovery_requests WHERE id=?
+  `).get(id);
+
+  if(!item || !['pending','verified'].includes(item.status))
+   return res.status(400).json({error:'Pedido não pode ser rejeitado.'});
+
+  db.prepare(`
+   UPDATE password_recovery_requests
+   SET status='rejected',codeHash=NULL,codeExpiresAt=NULL,updatedAt=?
+   WHERE id=?
+  `).run(new Date().toISOString(),id);
+
+  res.json({ok:true});
+ })
+);
+
+/* 6. Trabalhador confirma código e define novo PIN */
+app.post('/api/password-recovery/reset',
+ recoveryResetLimiter,
+ wrap(async(req,res)=>{
+  const phone=String(req.body.phone||'').replace(/\s/g,'');
+  const code=String(req.body.code||'').trim();
+  const newPin=String(req.body.newPin||'');
+
+  if(!/^[0-9]{9,15}$/.test(phone) ||
+     !/^[0-9]{6}$/.test(code) ||
+     !/^[0-9]{4,20}$/.test(newPin)){
+   return res.status(400).json({
+    error:'Telefone, código ou novo PIN inválido.'
+   });
+  }
+
+  const item=db.prepare(`
+   SELECT * FROM password_recovery_requests
+   WHERE phone=? AND status='code_generated'
+   ORDER BY id DESC LIMIT 1
+  `).get(phone);
+
+  if(!item || !item.userId || !item.codeHash)
+   return res.status(400).json({error:'Código inválido ou expirado.'});
+
+  if(item.codeAttempts>=5)
+   return res.status(429).json({
+    error:'Limite de tentativas atingido. Solicite novo código.'
+   });
+
+  if(!item.codeExpiresAt || Date.parse(item.codeExpiresAt)<=Date.now()){
+   db.prepare(`
+    UPDATE password_recovery_requests
+    SET status='expired',codeHash=NULL,updatedAt=?
+    WHERE id=?
+   `).run(new Date().toISOString(),item.id);
+
+   return res.status(400).json({error:'Código expirado. Solicite outro.'});
+  }
+
+  const valid=await bcrypt.compare(code,item.codeHash);
+
+  if(!valid){
+   const attempts=item.codeAttempts+1;
+
+   db.prepare(`
+    UPDATE password_recovery_requests
+    SET codeAttempts=?,
+        status=?,
+        codeHash=CASE WHEN ? >= 5 THEN NULL ELSE codeHash END,
+        updatedAt=?
+    WHERE id=?
+   `).run(
+    attempts,
+    attempts>=5?'expired':'code_generated',
+    attempts,
+    new Date().toISOString(),
+    item.id
+   );
+
+   return res.status(400).json({
+    error:attempts>=5
+     ? 'Limite de tentativas atingido. Solicite novo código.'
+     : 'Código incorrecto. Restam '+(5-attempts)+' tentativa(s).'
+   });
+  }
+
+  const user=db.prepare(`
+   SELECT id FROM users
+   WHERE id=? AND phone=? AND role='user' AND blocked=0
+  `).get(item.userId,phone);
+
+  if(!user)
+   return res.status(400).json({error:'Conta indisponível.'});
+
+  const hash=await bcrypt.hash(newPin,12);
+  const now=new Date().toISOString();
+
+  db.transaction(()=>{
+   db.prepare(`
+    UPDATE users SET passwordHash=? WHERE id=?
+   `).run(hash,user.id);
+
+   db.prepare(`
+    UPDATE password_recovery_requests
+    SET status='completed',usedAt=?,codeHash=NULL,updatedAt=?
+    WHERE id=?
+   `).run(now,now,item.id);
+
+   db.prepare(`
+    UPDATE password_recovery_requests
+    SET status='expired',codeHash=NULL,updatedAt=?
+    WHERE userId=? AND id<>? AND status IN ('pending','verified','code_generated')
+   `).run(now,user.id,item.id);
+  })();
+
+  res.json({
+   ok:true,
+   message:'PIN alterado com sucesso. Já pode entrar na MOZWORK.'
+  });
+ })
+);
 
 app.post('/api/logout',(req,res)=>{
  req.session.destroy(()=>res.json({ok:true}));
@@ -782,24 +1072,36 @@ app.get('/api/my-submissions',auth,wrap(async(req,res)=>{
  }));
 
  const accepted=db.prepare(`
-  SELECT a.task,a.createdAt,t.title,t.description,t.reward
+  SELECT a.task,a.createdAt,t.title,t.description,
+   t.reward,t.expiresAt,
+   CASE
+    WHEN t.expiresAt IS NOT NULL AND t.expiresAt<=?
+    THEN 'not_done'
+    ELSE 'accepted'
+   END AS status
   FROM task_acceptances a
   JOIN tasks t ON t.id=a.task
   LEFT JOIN submissions s
    ON s.task=a.task AND s.user=a.user
   WHERE a.user=? AND s.id IS NULL
   ORDER BY a.createdAt DESC
- `).all(req.user.id);
+ `).all(new Date().toISOString(),req.user.id);
 
  for(const a of accepted){
   items.push({
    task:a.task,
    taskTitle:a.title,
-   task:{id:a.task,title:a.title},
+   task:{
+    id:a.task,
+    title:a.title,
+    description:a.description
+   },
+   taskDescription:a.description,
    description:a.description,
    reward:a.reward,
-   status:'accepted',
+   status:a.status,
    createdAt:a.createdAt,
+   expiresAt:a.expiresAt,
    proofType:null
   });
  }
